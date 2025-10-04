@@ -101,18 +101,38 @@ export default function Home() {
               className="w-full my-2"
             >
               <CardHeader>
-                <CardTitle className="text-center">
-                  {tab === "login"
-                    ? "Login to your account"
-                    : "Create your account"}
+                <CardTitle className="text-center text-lg">
+                  {tab === "login" ? "Welcome back" : "Create your account"}
                 </CardTitle>
                 <CardDescription className="text-center">
                   {tab === "login"
-                    ? "Enter your email below to login"
-                    : "Fill the form to get started"}
+                    ? "Login with your Google Account"
+                    : "Sign up using your Google Account"}
                 </CardDescription>
+                {tab === "login" ? (
+                  <Button
+                    disabled
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                  >
+                    Login with Google
+                  </Button>
+                ) : (
+                  <Button
+                    disabled
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                  >
+                    Signup with Google
+                  </Button>
+                )}
 
-                <TabsList className="w-full">
+                <div className="my-4 after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
+                  <span className="bg-card text-muted-foreground relative z-10 px-2">
+                    Or continue with
+                  </span>
+                </div>
+                <TabsList className="w-full mb-2">
                   <TabsTrigger className="cursor-pointer" value="login">
                     Login
                   </TabsTrigger>
@@ -120,8 +140,6 @@ export default function Home() {
                     Register
                   </TabsTrigger>
                 </TabsList>
-
-                <hr />
               </CardHeader>
               {/* LOGIN TAB */}
               <TabsContent value="login">
@@ -153,13 +171,6 @@ export default function Home() {
                     <div className="flex flex-col gap-2 mt-4">
                       <Button type="submit" className="w-full cursor-pointer">
                         Login
-                      </Button>
-                      <Button
-                        disabled
-                        variant="outline"
-                        className="w-full cursor-pointer"
-                      >
-                        Login with Google
                       </Button>
                     </div>
                   </form>
