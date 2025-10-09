@@ -2,9 +2,9 @@
 
 import {
   ChevronRight,
-  Activity,
   LayoutDashboard,
-  Landmark,
+  Logs,
+  MessageCircleQuestionMark,
   UsersRound,
   Building2,
   CalendarCheck2,
@@ -57,9 +57,9 @@ const appItems: AppItem[] = [
         url: "#",
         icon: LayoutDashboard,
         items: [
-          { title: "System Overview", url: "#" },
-          { title: "Cross-Tenant Analytics", url: "#" },
-          { title: "Audit Log Summary", url: "#" },
+          { title: "Institution Overview", url: "#" },
+          { title: "Recent Activities", url: "#" },
+          { title: "Reports Overview", url: "#" },
         ],
       },
     ],
@@ -68,34 +68,23 @@ const appItems: AppItem[] = [
     application: "Management",
     subItems: [
       {
-        title: "Institutions",
-        url: "#",
-        icon: Landmark,
-        items: [
-          { title: "Institution Overview", url: "#" },
-          { title: "Create Institutions", url: "#" },
-          { title: "Pending Institutions", url: "#" },
-          { title: "Profile Institutions", url: "#" },
-        ],
-      },
-      {
         title: "Users",
         url: "#",
         icon: UsersRound,
         items: [
           { title: "User Overview", url: "#" },
-          { title: "Manage Users", url: "#" },
+          { title: "Verification & Control", url: "#" },
           { title: "Role Assignment", url: "#" },
         ],
       },
       {
-        title: "Clubs & Organizations",
+        title: "Clubs & Organization",
         url: "#",
         icon: Building2,
         items: [
           { title: "Club Overview", url: "#" },
           { title: "Club Approval & Moderation", url: "#" },
-          { title: "Club Details", url: "#" },
+          { title: "Club Profile", url: "#" },
         ],
       },
       {
@@ -104,8 +93,8 @@ const appItems: AppItem[] = [
         icon: CalendarCheck2,
         items: [
           { title: "Event Overview", url: "#" },
-          { title: "Event Moderation", url: "#" },
-          { title: "Event Analytics", url: "#" },
+          { title: "Event Approval Queue", url: "#" },
+          { title: "Attendance & Feedback", url: "#" },
         ],
       },
       {
@@ -113,53 +102,71 @@ const appItems: AppItem[] = [
         url: "#",
         icon: Megaphone,
         items: [
-          { title: "Global Announcements", url: "#" },
-          { title: "Institution Announcements", url: "#" },
+          { title: "Announcement Overview", url: "#" },
+          { title: "Insitution Announcements", url: "#" },
         ],
       },
     ],
   },
   {
-    application: "Moderation",
+    application: "Feedback",
     subItems: [
       {
-        title: "Content & Reports",
+        title: "Feedback & Certificates",
+        url: "#",
+        icon: MessageCircleQuestionMark,
+        items: [
+          { title: "Feedback Dashboard", url: "#" },
+          { title: "Certificate Overview", url: "#" },
+        ],
+      },
+    ],
+  },
+  {
+    application: "Content Moderation",
+    subItems: [
+      {
+        title: "Moderation and Reports",
         url: "#",
         icon: MessageSquareWarning,
         items: [
-          { title: "Reported Content Review", url: "#" },
-          { title: "Audit & Compliance Logs", url: "#" },
+          { title: "Report Content", url: "#" },
+          { title: "Institution Audit Logs", url: "#" },
         ],
       },
     ],
   },
   {
-    application: "Settings",
+    application: "Insitution Settings",
     subItems: [
       {
-        title: "System Settings",
+        title: "Settings",
         url: "#",
         icon: Settings,
         items: [
-          { title: "Platform Configuration", url: "#" },
-          { title: "API & Provider Keys", url: "#" },
-          { title: "Security Settings", url: "#" },
+          { title: "Profile Settings", url: "#" },
+          { title: "Institution Preferences", url: "#" },
         ],
       },
+    ],
+  },
+  {
+    application: "Logs",
+    subItems: [
       {
-        title: "Audit & Activity Logs",
+        title: "Audit & Activity History",
         url: "#",
-        icon: Activity,
+        icon: Logs,
         items: [
-          { title: "System-Wide Audit Log", url: "#" },
-          { title: "Institution Audit Log", url: "#" },
+          { title: "Activity Log", url: "#" },
+          { title: "Audit Export", url: "#" },
         ],
       },
     ],
   },
 ];
 
-export default function AdminSideBar() {
+export default function InstitutionSideBar() {
   return (
     <>
       {appItems.map((apps: AppItem) => (

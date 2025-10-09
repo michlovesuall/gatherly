@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Scale } from "lucide-react";
 import AdminSideBar from "@/components/admin/sidebar";
 import {
   Sidebar,
@@ -13,6 +12,8 @@ import {
 } from "@/components/ui/sidebar";
 import { NavUser } from "@/components/app-user";
 import EmployeeSideBar from "./employee/sidebar";
+import InstitutionSideBar from "./institution/sidebar";
+import StudentSideBar from "./student/sidebar";
 
 // Menu items.
 
@@ -24,6 +25,18 @@ export function AppSidebar() {
     avatar: "https://github.com/shadcn.png",
   };
 
+  let content;
+
+  if (user.role === "employee") {
+    content = <EmployeeSideBar />;
+  } else if (user.role === "institution") {
+    content = <InstitutionSideBar />;
+  } else if (user.role === "admin") {
+    content = <AdminSideBar />;
+  } else {
+    content = <StudentSideBar />;
+  }
+
   return (
     <Sidebar>
       <SidebarHeader className="mt-4">
@@ -33,9 +46,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
-        {user.role === "employee" ? <EmployeeSideBar /> : <AdminSideBar />}
-      </SidebarContent>
+      <SidebarContent>{content}</SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />
       </SidebarFooter>

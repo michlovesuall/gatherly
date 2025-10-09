@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, UserStar, UserRound } from "lucide-react";
+import { ChevronRight, UserRound } from "lucide-react";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -54,31 +54,6 @@ const appItems: AppItem[] = [
           { title: "Announcements Summary", url: "#" },
         ],
       },
-      {
-        title: "Advisor Dashboard",
-        url: "#",
-        icon: UserStar,
-        subItems: [
-          { title: "Assigned Clubs", url: "#" },
-          { title: "Event Management", url: "#" },
-          { title: "Club Membership Management", url: "#" },
-          { title: "Feedback Analytics", url: "#" },
-        ],
-      },
-    ],
-  },
-  {
-    application: "Management",
-    subItems: [
-      {
-        title: "Club Management",
-        url: "#",
-        icon: UserStar,
-        subItems: [
-          { title: "Club Management", url: "#" },
-          { title: "Event Management", url: "#" },
-        ],
-      },
     ],
   },
 ];
@@ -99,7 +74,7 @@ export default function EmployeeSideBar() {
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
+                    <CollapsibleTrigger asChild className="cursor-pointer">
                       <SidebarMenuButton tooltip={item.title}>
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>

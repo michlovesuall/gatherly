@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/popover";
 
 type TabKey = "login" | "register";
-type RegisterTabKey = "user" | "institution";
+type RegisterTabKey = "student" | "employee" | "institution";
 
 const institutions = [
   {
@@ -56,7 +56,7 @@ const institutions = [
 
 export default function Home() {
   const [tab, setTab] = useState<TabKey>("login");
-  const [registerTab, setRegisterTab] = useState<RegisterTabKey>("user");
+  const [registerTab, setRegisterTab] = useState<RegisterTabKey>("student");
 
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
@@ -194,12 +194,18 @@ export default function Home() {
                           }
                           className="w-full"
                         >
-                          <TabsList className="grid w-full grid-cols-2">
+                          <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger
-                              value="user"
+                              value="student"
                               className="cursor-pointer"
                             >
-                              User
+                              Student
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="employee"
+                              className="cursor-pointer"
+                            >
+                              Employee
                             </TabsTrigger>
                             <TabsTrigger
                               value="institution"
@@ -214,18 +220,18 @@ export default function Home() {
                       {/* Registration Type Description */}
                       <div>
                         <div className="space-y-3">
-                          {registerTab === "user" ? (
+                          {registerTab === "student" ? (
                             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                               <h4 className="font-medium text-blue-900 mb-2">
-                                Register as User
+                                Register as Student
                               </h4>
                               <p className="text-sm text-blue-700">
-                                Create a personal account to join events,
-                                connect with other students, and participate in
-                                campus activities.
+                                Create a student account to join events, connect
+                                with other students, and participate in campus
+                                activities.
                               </p>
                             </div>
-                          ) : (
+                          ) : registerTab === "institution" ? (
                             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                               <h4 className="font-medium text-green-900 mb-2">
                                 Register as Institution
@@ -236,6 +242,17 @@ export default function Home() {
                                 your campus community.
                               </p>
                             </div>
+                          ) : (
+                            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                              <h4 className="font-medium text-yellow-900 mb-2">
+                                Register as Employee
+                              </h4>
+                              <p className="text-sm text-yellow-700">
+                                Create an employee account to join events,
+                                manage clubs and organizations, and participate
+                                in campus activities.
+                              </p>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -244,15 +261,18 @@ export default function Home() {
                     {/* Right Column - Registration Form */}
                     <div className="space-y-4">
                       <h3 className="text-lg text-center md:text-left font-semibold">
-                        {registerTab === "user"
-                          ? "User Registration"
+                        {registerTab === "student"
+                          ? "Student Registration"
+                          : registerTab === "employee"
+                          ? "Employee Registration"
                           : "Institution Registration"}
                       </h3>
 
                       <form>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {registerTab === "user" ? (
-                            // User Registration Form
+                          {registerTab === "student" ||
+                          registerTab === "employee" ? (
+                            // Student Registration Form
                             <>
                               <div className="grid gap-2">
                                 <Label htmlFor="fullName">
@@ -268,19 +288,34 @@ export default function Home() {
                                   required
                                 />
                               </div>
-                              <div className="grid gap-2">
-                                <Label htmlFor="studentId">
-                                  Student ID
-                                  <span className="text-red-600 m-0 p-0">
-                                    *
-                                  </span>
-                                </Label>
-                                <Input
-                                  id="studentId"
-                                  type="text"
-                                  placeholder="2024-12345"
-                                />
-                              </div>
+                              {registerTab === "student" ? (
+                                <div className="grid gap-2">
+                                  <Label htmlFor="idNumber">
+                                    ID Number
+                                    <span className="italic text-gray-400 m-0 p-0">
+                                      (Student ID)
+                                    </span>
+                                    <span className="text-red-600 m-0 p-0">
+                                      *
+                                    </span>
+                                  </Label>
+                                  <Input id="idNumber" type="text" />
+                                </div>
+                              ) : (
+                                <div className="grid gap-2">
+                                  <Label htmlFor="idNumber">
+                                    ID Number
+                                    <span className="italic text-gray-400 m-0 p-0">
+                                      (Employee ID)
+                                    </span>
+                                    <span className="text-red-600 m-0 p-0">
+                                      *
+                                    </span>
+                                  </Label>
+                                  <Input id="idNumber" type="text" />
+                                </div>
+                              )}
+
                               <div className="grid gap-2">
                                 <Label htmlFor="userEmail">
                                   Email
@@ -476,8 +511,10 @@ export default function Home() {
                             type="submit"
                             className="w-full cursor-pointer"
                           >
-                            {registerTab === "user"
-                              ? "Register as User"
+                            {registerTab === "student"
+                              ? "Register as Student"
+                              : registerTab === "employee"
+                              ? "Register as Employee"
                               : "Register as Institution"}
                           </Button>
                           <Button
