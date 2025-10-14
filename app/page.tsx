@@ -16,29 +16,6 @@ import RegistrationForm from "@/components/registration/registration-form";
 import { RegisterTabKey } from "@/lib/types";
 import { TabKey } from "@/lib/types";
 
-const institutions = [
-  {
-    value: "parsu",
-    label: "Partido State University",
-  },
-  {
-    value: "cbsua",
-    label: "Central Bicol State University of Agriculture",
-  },
-  {
-    value: "cspc",
-    label: "Camarines Sur Polytechnic Colleges",
-  },
-  {
-    value: "bu-polangui",
-    label: "Bicol University - Polangui Campus",
-  },
-  {
-    value: "gcc",
-    label: "Goa Community",
-  },
-];
-
 export default function Home() {
   const [tab, setTab] = useState<TabKey>("login");
   const [registerTab, setRegisterTab] = useState<RegisterTabKey>("student");
@@ -132,7 +109,6 @@ export default function Home() {
               <RegistrationForm
                 registerTab={registerTab}
                 setRegisterTab={setRegisterTab}
-                institutions={institutions}
                 value={value}
                 setValue={setValue}
                 open={open}
