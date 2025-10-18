@@ -1,9 +1,9 @@
 export type RegisterTabKey = "student" | "employee" | "institution";
 export type TabKey = "login" | "register";
 
-export interface InstitutionRegistrationData {
+export type InstitutionRegistrationData = {
   institutionName: string;
-  institutionEmail: string;
+  emailDomain: string;
   webDomain?: string;
   contactPersonEmail: string;
   institutionPassword: string;

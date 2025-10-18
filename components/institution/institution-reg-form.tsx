@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import type { InstitutionRegistrationData } from "@/lib/types";
 
-
 export default function InstitutionRegistrationForm() {
   const {
     register,
@@ -18,28 +17,33 @@ export default function InstitutionRegistrationForm() {
       alert("Password do not match");
       return;
     }
-    const now = new Date().toISOString();
-    const res = await fetch("/api/register/institution", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...data,
-        institutionName: data.institutionName,
-        hashedPassword: data.institutionPassword,
-        emailDomain: data.institutionEmail,
-        status: "pending",
-        created_at: now,
-        updated_at: now,
-      }),
-    });
 
-    const result = await res.json();
-    if (!res.ok) {
-      alert(result.error || "Registration error.");
-      return;
+    const payload = {
+      institutionName: data.institutionName,
+      password: data.institutionPassword,
+      emailDomain: data.emailDomain || null,
+      webDomain: data.webDomain || null,
+      contactPersonEmail: data.contactPersonEmail,
+    };
+
+    try {
+      const res = await fetch("/api/register/institution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        alert(json.error || "Registration Failed.");
+        return;
+      }
+
+      alert("Institution registered! pending approval.");
+      reset();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
     }
-    reset();
-    alert("Institution registered.");
   };
 
   return (
@@ -63,6 +67,7 @@ export default function InstitutionRegistrationForm() {
             <Label htmlFor="institutionName">
               Institution Name<span className="text-red-600 m-0 p-0">*</span>
             </Label>
+            {/* Institution Name. Example: Partido State University */}
             <Input
               id="institutionName"
               type="text"
@@ -82,23 +87,23 @@ export default function InstitutionRegistrationForm() {
             <Label htmlFor="institutionEmail">
               Email<span className="text-red-600 m-0 p-0">*</span>
             </Label>
+            {/* Institution Email. Example: parsu@edu.ph */}
             <Input
-              id="institutionEmail"
+              id="emailDomain"
               type="email"
               placeholder="parsu@example.com"
               required
-              {...register("institutionEmail", {
+              {...register("emailDomain", {
                 required: "Email is required.",
               })}
             />
             <p className="text-red-500 text-xs">
-              {errors.institutionEmail && (
-                <span>{errors.institutionEmail.message}</span>
-              )}
+              {errors.emailDomain && <span>{errors.emailDomain.message}</span>}
             </p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="webDomain">Website</Label>
+            {/* Web Domain. Example: parsu.edu.ph */}
             <Input
               id="webDomain"
               type="text"
@@ -111,6 +116,7 @@ export default function InstitutionRegistrationForm() {
               Contact Person&apos;s Email
               <span className="text-red-600 m-0 p-0">*</span>
             </Label>
+            {/* Contact Person Email. Example: johndoe@gmail.com -> will be contacted if clients have concern about the institution */}
             <Input
               id="contactPersonEmail"
               type="email"
@@ -130,6 +136,7 @@ export default function InstitutionRegistrationForm() {
             <Label htmlFor="institutionPassword">
               Password<span className="text-red-600 m-0 p-0">*</span>
             </Label>
+            {/* Institution Password -> will be hashed. */}
             <Input
               id="institutionPassword"
               type="password"
@@ -148,6 +155,7 @@ export default function InstitutionRegistrationForm() {
             <Label htmlFor="institutionConfirmPassword">
               Confirm Password<span className="text-red-600 m-0 p-0">*</span>
             </Label>
+            {/* Password Confirmation. Checks if the entered is correct. */}
             <Input
               id="institutionConfirmPassword"
               type="password"
