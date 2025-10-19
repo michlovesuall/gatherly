@@ -30,9 +30,9 @@ function slugify(name: string) {
   return name
     .toLowerCase()
     .trim()
-    .replace(/['"]/g, "") // drop quotes
-    .replace(/[^a-z0-9]+/g, "-") // non-alnum -> hyphen
-    .replace(/(^-|-$)+/g, ""); // trim hyphens
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
 }
 
 function isoNow() {
@@ -73,7 +73,6 @@ export async function POST(req: Request) {
       updatedAt: now,
     };
 
-    // (C) write to Neo4j
     const cypher = `
       CREATE (i:Institution {
         institutionId:$institutionId,

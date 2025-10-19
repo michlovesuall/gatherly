@@ -20,6 +20,13 @@ export interface EmployeeRegistrationData {
   institution?: string;
 }
 
+export interface EmployeeRegistrationFormProps {
+  value: string;
+  setValue: (val: string) => void;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
+
 export interface StudentRegistrationData {
   fullName: string;
   idNumber: string;

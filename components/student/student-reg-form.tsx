@@ -83,7 +83,6 @@ export default function StudentRegistrationForm({
       return;
     }
 
-    // call api here Ex. await fetch("/api/register/student", {method: "POST", body: JSON.stringify(data)})
     reset();
     alert("Student Registered");
   };

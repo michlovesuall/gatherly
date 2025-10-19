@@ -77,8 +77,8 @@ export default function RegistrationForm({
               />
             ) : registerTab === "employee" ? (
               <EmployeeRegistrationForm
-                institutionValue={value}
-                setInstitutionValue={setValue}
+                value={value}
+                setValue={setValue}
                 open={open}
                 setOpen={setOpen}
               />
