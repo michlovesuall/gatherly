@@ -33,7 +33,7 @@ export default function InstitutionRegistrationForm() {
     };
 
     try {
-      const res = await fetch("/api/register/institution", {
+      const res = await fetch("/api/institution", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -18,29 +19,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useForm } from "react-hook-form";
-import type { StudentRegistrationData } from "@/lib/types";
-
-const institutions = [
-  {
-    value: "parsu",
-    label: "Partido State University",
-  },
-  {
-    value: "cbsua",
-    label: "Central Bicol State University of Agriculture",
-  },
-  {
-    label: "Camarines Sur Polytechnic Colleges",
-  },
-  {
-    value: "bu-polangui",
-    label: "Bicol University - Polangui Campus",
-  },
-  {
-    value: "gcc",
-    label: "Goa Community",
-  },
-];
+import type { InstitutionOption, StudentRegistrationData } from "@/lib/types";
 
 interface StudentRegistrationFormProps {
   value: string;
@@ -61,6 +40,42 @@ export default function StudentRegistrationForm({
     formState: { errors, isSubmitting },
     reset,
   } = useForm<StudentRegistrationData>();
+
+  // Load From API
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoadErr(null);
+      try {
+        const res = await fetch("/api/institution?limit=200", {
+          cache: "no-store",
+        });
+        const ct = res.headers.get("content-type") || "";
+        const data = ct.includes("application/json")
+          ? await res.json()
+          : { ok: false, items: [], error: await res.text() };
+        if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
+        if (!cancelled) setInstitutions(data.items ?? []);
+      } catch (e) {
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedLabel = useMemo(
+    () => institutions.find((i) => i.value === value)?.label ?? "",
+    [institutions, value]
+  );
 
   const onSubmit = async (data: StudentRegistrationData) => {
     if (data.userPassword !== data.userConfirmPassword) {
@@ -162,12 +177,16 @@ export default function StudentRegistrationForm({
                   aria-expanded={open}
                   className="w-full justify-between"
                   type="button"
+                  disabled={loading}
                 >
-                  {value
+                  {/* {value
                     ? institutions.find(
                         (institution) => institution.value === value
                       )?.label
-                    : "Select Institution..."}
+                    : "Select Institution..."} */}
+                  {loading
+                    ? "Loading institutions..."
+                    : selectedLabel || "Select Institution..."}
                   <ChevronsUpDown className="opacity-50" />
                 </Button>
               </PopoverTrigger>

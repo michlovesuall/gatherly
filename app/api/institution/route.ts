@@ -1,7 +1,9 @@
-import { NextResponse } from "next/server";
-import { runQuery } from "@/lib/neo4j";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
+import { NextResponse } from "next/server";
+import { runQuery } from "@/lib/neo4j";
+import type { InstitutionOption } from "@/lib/types";
+import neo4j from "neo4j-driver";
 
 interface InstitutionRecord {
   institutionId: string;
@@ -109,4 +111,43 @@ export async function POST(req: Request) {
         : 400;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+  const status = url.searchParams.get("status");
+
+  const limitRaw = url.searchParams.get("limit");
+  const limitNum = Number.isFinite(Number(limitRaw)) ? Number(limitRaw) : 100;
+  const limitSafe = Math.min(Math.max(0, Math.trunc(limitNum)), 200);
+
+  const filters: string[] = [];
+  if (q)
+    filters.push(
+      `(toLower(i.institutionName) CONTAINS $q OR toLower(i.slug) CONTAINS $q)`
+    );
+  if (status) filters.push(`i.status = $status`);
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+
+  const params = { q, status, limit: neo4j.int(limitSafe) };
+
+  const cypher = `
+    MATCH (i:Institution)
+    ${where}
+    RETURN {
+        id: i.institutionId,
+        value: i.slug,
+        label: i.institutionName,
+        status: coalesce(i.status, "pending")
+    } AS option
+    ORDER BY i.institutionName ASC
+    LIMIT $limit
+    `;
+
+  const rows = await runQuery<{ option: InstitutionOption }>(cypher, params);
+  return NextResponse.json(
+    { ok: true, items: rows.map((r) => r.option) },
+    { status: 200 }
+  );
 }

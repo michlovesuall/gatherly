@@ -8,7 +8,7 @@ export type InstitutionRegistrationData = {
   contactPersonEmail: string;
   institutionPassword: string;
   institutionConfirmPassword: string;
-}
+};
 
 export interface EmployeeRegistrationData {
   fullName: string;
@@ -29,3 +29,10 @@ export interface StudentRegistrationData {
   userConfirmPassword: string;
   institution?: string;
 }
+
+export type InstitutionOption = {
+  id: string;
+  value: string;
+  label: string;
+  status: string;
+};
