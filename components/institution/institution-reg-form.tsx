@@ -1,10 +1,16 @@
+"use client";
+
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import type { InstitutionRegistrationData } from "@/lib/types";
+import { useState } from "react";
 
 export default function InstitutionRegistrationForm() {
+  const [passwordError, setPasswordError] = useState("");
+
   const {
     register,
     handleSubmit,
@@ -14,7 +20,7 @@ export default function InstitutionRegistrationForm() {
 
   const onSubmit = async (data: InstitutionRegistrationData) => {
     if (data.institutionPassword !== data.institutionConfirmPassword) {
-      alert("Password do not match");
+      setPasswordError("Password do not match. Please Try again");
       return;
     }
 
@@ -39,6 +45,7 @@ export default function InstitutionRegistrationForm() {
         return;
       }
 
+      setPasswordError("");
       alert("Institution registered! pending approval.");
       reset();
     } catch (e) {
@@ -146,8 +153,10 @@ export default function InstitutionRegistrationForm() {
               })}
             />
             <p className="text-red-500 text-xs">
-              {errors.institutionPassword && (
+              {errors.institutionPassword ? (
                 <span>{errors.institutionPassword.message}</span>
+              ) : (
+                passwordError
               )}
             </p>
           </div>
@@ -177,7 +186,13 @@ export default function InstitutionRegistrationForm() {
             className="w-full cursor-pointer"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Submitting..." : "Register as Institution"}
+            {isSubmitting ? (
+              <span className="flex gap-2">
+                <Spinner /> Submitting...
+              </span>
+            ) : (
+              "Register as Institution"
+            )}
           </Button>
         </div>
       </form>
