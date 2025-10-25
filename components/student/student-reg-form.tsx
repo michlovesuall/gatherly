@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+// UI Imports
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -18,22 +18,31 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+
+// Utility Imports
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import type { InstitutionOption, StudentRegistrationData } from "@/lib/types";
 
-interface StudentRegistrationFormProps {
-  value: string;
-  setValue: (val: string) => void;
+interface StudentFormProps {
+  institutions: InstitutionOption[];
+  loadingInstitutions: boolean;
+  institutionError: string | null;
+  institutionValue: string;
+  setInstitutionValue: (val: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
 }
 
 export default function StudentRegistrationForm({
-  value,
-  setValue,
+  institutions,
+  loadingInstitutions,
+  institutionError,
+  institutionValue,
+  setInstitutionValue,
   open,
   setOpen,
-}: StudentRegistrationFormProps) {
+}: StudentFormProps) {
   const {
     register,
     handleSubmit,
@@ -41,50 +50,56 @@ export default function StudentRegistrationForm({
     reset,
   } = useForm<StudentRegistrationData>();
 
-  // Load From API
-  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setLoadErr(null);
-      try {
-        const res = await fetch("/api/institution?limit=200", {
-          cache: "no-store",
-        });
-        const ct = res.headers.get("content-type") || "";
-        const data = ct.includes("application/json")
-          ? await res.json()
-          : { ok: false, items: [], error: await res.text() };
-        if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
-        if (!cancelled) setInstitutions(data.items ?? []);
-      } catch (e) {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const selectedLabel = useMemo(
-    () => institutions.find((i) => i.value === value)?.label ?? "",
-    [institutions, value]
+    () => institutions.find((i) => i.value === institutionValue)?.label ?? "",
+    [institutions, institutionValue]
   );
 
   const onSubmit = async (data: StudentRegistrationData) => {
+    if (!institutionValue) {
+      alert("Please select your institution.");
+      return;
+    }
     if (data.userPassword !== data.userConfirmPassword) {
       alert("Password do not matched!");
       return;
     }
 
-    reset();
-    alert("Student Registered");
+    const selected = institutions.find((i) => i.value === institutionValue);
+
+    const payload = {
+      name: data.fullName,
+      idNumber: data.idNumber,
+      email: data.userEmail,
+      phone: data.userPhone,
+      password: data.userPassword,
+      avatarUrl: null,
+      institutionId: selected?.id,
+      institutionSlug: selected?.value,
+    };
+
+    try {
+      const res = await fetch("/api/register/student", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      const json = ct.includes("application/json")
+        ? await res.json()
+        : { ok: false, error: (await res).text() };
+
+      if (!res.ok) {
+        alert(json.error || `Registration failed (${res.status})`);
+      }
+
+      alert("Student registered successfully!");
+      reset();
+      setInstitutionValue("");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (
@@ -176,14 +191,9 @@ export default function StudentRegistrationForm({
                   aria-expanded={open}
                   className="w-full justify-between"
                   type="button"
-                  disabled={loading}
+                  disabled={loadingInstitutions}
                 >
-                  {/* {value
-                    ? institutions.find(
-                        (institution) => institution.value === value
-                      )?.label
-                    : "Select Institution..."} */}
-                  {loading
+                  {loadingInstitutions
                     ? "Loading institutions..."
                     : selectedLabel || "Select Institution..."}
                   <ChevronsUpDown className="opacity-50" />
@@ -203,8 +213,10 @@ export default function StudentRegistrationForm({
                           key={institution.value}
                           value={institution.value}
                           onSelect={(currentValue) => {
-                            setValue(
-                              currentValue === value ? "" : currentValue
+                            setInstitutionValue(
+                              currentValue === institutionValue
+                                ? ""
+                                : currentValue
                             );
                             setOpen(false);
                           }}
@@ -212,7 +224,7 @@ export default function StudentRegistrationForm({
                           {institution.label}
                           <Check
                             className={
-                              value === institution.value
+                              institutionValue === institution.value
                                 ? "ml-auto opacity-100"
                                 : "ml-auto opacity-0"
                             }
@@ -224,6 +236,9 @@ export default function StudentRegistrationForm({
                 </Command>
               </PopoverContent>
             </Popover>
+            {institutionError && (
+              <p className="text-sm text-red-600">Error: {institutionError}</p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="userPassword">Password</Label>
@@ -264,7 +279,6 @@ export default function StudentRegistrationForm({
             className="w-full cursor-pointer"
             disabled={isSubmitting}
           >
-            Register as Student
             {isSubmitting ? "Submitting..." : "Register as Student"}
           </Button>
         </div>

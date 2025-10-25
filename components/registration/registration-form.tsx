@@ -3,23 +3,15 @@
 import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useEffect, useState } from "react";
 
 // Import Types
-import { RegisterTabKey } from "@/lib/types";
+import { InstitutionOption, RegisterTabKey } from "@/lib/types";
 
 // Custome Components
 import InstitutionRegistrationForm from "@/components/institution/institution-reg-form";
 import StudentRegistrationForm from "../student/student-reg-form";
 import EmployeeRegistrationForm from "../employee/employee-reg-form";
-
-interface RegistrationFormProps {
-  registerTab: RegisterTabKey;
-  setRegisterTab: (tab: RegisterTabKey) => void;
-  value: string;
-  setValue: (value: string) => void;
-  open: boolean;
-  setOpen: (open: boolean) => void;
-}
 
 const TAB_KEYS = ["student", "employee", "institution"] as const;
 type RegisterTabKeySafe = (typeof TAB_KEYS)[number];
@@ -29,11 +21,51 @@ const isRegisterTabKey = (v: string): v is RegisterTabKeySafe =>
 export default function RegistrationForm({
   registerTab,
   setRegisterTab,
-  value,
-  setValue,
-  open,
-  setOpen,
-}: RegistrationFormProps) {
+}: {
+  registerTab: RegisterTabKey;
+  setRegisterTab: (k: RegisterTabKey) => void;
+}) {
+  const [studentInstitution, setStudentInstitution] = useState("");
+  const [studentOpen, setStudentOpen] = useState(false);
+
+  const [employeeInstitution, setEmployeeInstitution] = useState("");
+  const [employeeOpen, setEmployeeOpen] = useState(false);
+
+  // console.log({
+  //   studentInstitution,
+  //   employeeInstitution,
+  //   setStudentInstitution: typeof setStudentInstitution,
+  //   setEmployeeInstitution: typeof setEmployeeInstitution,
+  // });
+
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
+  const [loadingInstitution, setLoadingInstitution] = useState(true);
+  const [instError, setInstError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingInstitution(true);
+      setInstError(null);
+      try {
+        const res = await fetch("/api/institution?limit=200", {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
+        if (!cancelled) setInstitutions(data.items ?? []);
+      } catch (e) {
+        if (!cancelled)
+          setInstError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoadingInstitution(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <TabsContent value="register">
       <CardContent className="p-0">
@@ -68,23 +100,29 @@ export default function RegistrationForm({
 
           {/* Right Column - Registration Form */}
           <div className="space-y-4">
-            {registerTab === "student" ? (
+            {registerTab === "student" && (
               <StudentRegistrationForm
-                value={value}
-                setValue={setValue}
-                open={open}
-                setOpen={setOpen}
+                institutions={institutions}
+                loadingInstitutions={loadingInstitution}
+                institutionError={instError}
+                institutionValue={studentInstitution}
+                setInstitutionValue={setStudentInstitution}
+                open={studentOpen}
+                setOpen={setStudentOpen}
               />
-            ) : registerTab === "employee" ? (
-              <EmployeeRegistrationForm
-                value={value}
-                setValue={setValue}
-                open={open}
-                setOpen={setOpen}
-              />
-            ) : (
-              <InstitutionRegistrationForm />
             )}
+            {registerTab === "employee" && (
+              <EmployeeRegistrationForm
+                institutions={institutions}
+                loadingInstitutions={loadingInstitution}
+                institutionError={instError}
+                institutionValue={employeeInstitution}
+                setInstitutionValue={setEmployeeInstitution}
+                open={employeeOpen}
+                setOpen={setEmployeeOpen}
+              />
+            )}
+            {registerTab === "institution" && <InstitutionRegistrationForm />}
 
             <div className="flex flex-col gap-2">
               <Button

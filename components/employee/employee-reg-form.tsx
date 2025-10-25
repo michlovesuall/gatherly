@@ -1,5 +1,5 @@
 "use client";
-
+// UI Imports
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -17,56 +17,31 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { useForm } from "react-hook-form";
-import type {
-  InstitutionOption,
-  EmployeeRegistrationData,
-  EmployeeRegistrationFormProps,
-} from "@/lib/types";
 
-import { useEffect, useMemo, useState } from "react";
+// Utility Imports
+import { useForm } from "react-hook-form";
+import { useMemo } from "react";
+import type { InstitutionOption, EmployeeRegistrationData } from "@/lib/types";
+
+interface EmployeeFormProps {
+  institutions: InstitutionOption[];
+  loadingInstitutions: boolean;
+  institutionError: string | null;
+  institutionValue: string;
+  setInstitutionValue: (val: string) => void;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
 
 export default function EmployeeRegistrationForm({
-  value,
-  setValue,
+  institutions,
+  loadingInstitutions,
+  institutionError,
+  institutionValue,
+  setInstitutionValue,
   open,
   setOpen,
-}: EmployeeRegistrationFormProps) {
-  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setLoadErr(null);
-      try {
-        const res = await fetch("/api/institution?limit=200", {
-          cache: "no-store",
-        });
-        const ct = res.headers.get("content-type") || "";
-        const data = ct.includes("application/json")
-          ? await res.json()
-          : { ok: false, items: [], error: await res.text() };
-        if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
-        if (!cancelled) setInstitutions(data.items ?? []);
-      } catch (e) {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const selectedLabel = useMemo(
-    () => institutions.find((i) => i.value === value)?.label ?? "",
-    [institutions, value]
-  );
-
+}: EmployeeFormProps) {
   const {
     register,
     handleSubmit,
@@ -74,16 +49,57 @@ export default function EmployeeRegistrationForm({
     reset,
   } = useForm<EmployeeRegistrationData>();
 
+  const selectedLabel = useMemo(
+    () => institutions.find((i) => i.value === institutionValue)?.label ?? "",
+    [institutions, institutionValue]
+  );
+
   const onSubmit = async (data: EmployeeRegistrationData) => {
+    if (!institutionValue) {
+      alert("Please select your institution.");
+      return;
+    }
     if (data.userPassword !== data.userConfirmPassword) {
-      alert("Password do not match.");
+      alert("Password do not matched!");
       return;
     }
 
-    // API CALL HERE
+    const selected = institutions.find((i) => i.value === institutionValue);
 
-    reset();
-    alert("Employee Registered!");
+    const payload = {
+      name: data.fullName,
+      idNumber: data.idNumber,
+      email: data.userEmail,
+      phone: data.userPhone,
+      password: data.userPassword,
+      avatarUrl: null,
+      institutionId: selected?.id,
+      institutionSlug: selected?.value,
+    };
+
+    try {
+      const res = await fetch("/api/register/employee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      const json = ct.includes("application/json")
+        ? await res.json()
+        : { ok: false, error: await res.text() };
+
+      if (!res.ok) {
+        alert(json.error || `Registration failed (${res.status})`);
+        return;
+      }
+
+      alert("Employee registered successfully!");
+      reset();
+      setInstitutionValue("");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (
@@ -175,10 +191,11 @@ export default function EmployeeRegistrationForm({
                   aria-expanded={open}
                   className="w-full justify-between"
                   type="button"
+                  disabled={loadingInstitutions}
                 >
-                  {value
-                    ? institutions.find((i) => i.value === value)?.label
-                    : "Select Institution..."}
+                  {loadingInstitutions
+                    ? "Loading institutions..."
+                    : selectedLabel || "Select Institution..."}
                   <ChevronsUpDown className="opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -196,8 +213,10 @@ export default function EmployeeRegistrationForm({
                           key={institution.value}
                           value={institution.value}
                           onSelect={(currentValue) => {
-                            setValue(
-                              currentValue === value ? "" : currentValue
+                            setInstitutionValue(
+                              currentValue === institutionValue
+                                ? ""
+                                : currentValue
                             );
                             setOpen(false);
                           }}
@@ -205,7 +224,7 @@ export default function EmployeeRegistrationForm({
                           {institution.label}
                           <Check
                             className={
-                              value === institution.value
+                              institutionValue === institution.value
                                 ? "ml-auto opacity-100"
                                 : "ml-auto opacity-0"
                             }
@@ -217,6 +236,9 @@ export default function EmployeeRegistrationForm({
                 </Command>
               </PopoverContent>
             </Popover>
+            {institutionError && (
+              <p className="text-sm text-red-600">Error: {institutionError}</p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="userPassword">Password</Label>
