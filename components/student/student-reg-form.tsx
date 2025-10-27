@@ -22,7 +22,17 @@ import {
 // Utility Imports
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
-import type { InstitutionOption, StudentRegistrationData } from "@/lib/types";
+import type { InstitutionOption } from "@/lib/types";
+
+interface StudentRegistrationData {
+  fullName: string;
+  idNumber: string;
+  userEmail: string;
+  userPhone: string;
+  userPassword: string;
+  userConfirmPassword: string;
+  institution?: string;
+}
 
 interface StudentFormProps {
   institutions: InstitutionOption[];
@@ -88,7 +98,7 @@ export default function StudentRegistrationForm({
       const ct = res.headers.get("content-type") || "";
       const json = ct.includes("application/json")
         ? await res.json()
-        : { ok: false, error: (await res).text() };
+        : { ok: false, error: await res.text() };
 
       if (!res.ok) {
         alert(json.error || `Registration failed (${res.status})`);

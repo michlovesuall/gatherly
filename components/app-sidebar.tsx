@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import AdminSideBar from "@/components/admin/sidebar";
 import {
   Sidebar,
@@ -15,23 +17,61 @@ import EmployeeSideBar from "./employee/sidebar";
 import InstitutionSideBar from "./institution/sidebar";
 import StudentSideBar from "./student/sidebar";
 
-// Menu items.
+interface User {
+  name: string;
+  email: string;
+  role:
+    | "student"
+    | "employee"
+    | "admin"
+    | "institution"
+    | "super_admin"
+    | "staff";
+  avatar?: string;
+}
 
 export function AppSidebar() {
-  const user = {
-    name: "Michael Amata",
-    email: "username@example.com",
-    role: "employee",
-    avatar: "https://github.com/shadcn.png",
-  };
+  const pathname = usePathname();
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User>({
+    name: "User",
+    email: "",
+    role: "student",
+    avatar: undefined,
+  });
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const response = await fetch("/api/auth/session");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setUser({
+              name: data.user.name || "User",
+              email: data.user.email || "",
+              role: (data.user.role as User["role"]) || "student",
+              avatar: data.user.avatar,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch user data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchUser();
+  }, [pathname]);
 
   let content;
 
-  if (user.role === "employee") {
+  if (user.role === "employee" || user.role === "staff") {
     content = <EmployeeSideBar />;
   } else if (user.role === "institution") {
     content = <InstitutionSideBar />;
-  } else if (user.role === "admin") {
+  } else if (user.role === "admin" || user.role === "super_admin") {
     content = <AdminSideBar />;
   } else {
     content = <StudentSideBar />;
@@ -47,9 +87,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>{content}</SidebarContent>
-      <SidebarFooter>
-        <NavUser user={user} />
-      </SidebarFooter>
+      <SidebarFooter>{!isLoading && <NavUser user={user} />}</SidebarFooter>
     </Sidebar>
   );
 }

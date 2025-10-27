@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     // Match the institution Node
     const matchInstitutionCyper = body.institutionId
       ? `MATCH (i:Institution {institutionId: $institutionId}) RETURN i LIMIT 1`
-      : `MATCH (i:Institution {slug: institutionSlug} RETURN i LIMIT 1)`;
+      : `MATCH (i:Institution {slug: $institutionSlug}) RETURN i LIMIT 1`;
 
     const instParams = body.institutionId
       ? { institutionId: body.institutionId }

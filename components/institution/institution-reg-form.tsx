@@ -46,7 +46,7 @@ export default function InstitutionRegistrationForm() {
       }
 
       setPasswordError("");
-      alert("Institution registered! pending approval.");
+      alert("Institution registered successfully.");
       reset();
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));

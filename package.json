@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "analyze:exports": "echo 'Run: npx ts-prune'",
+    "analyze:code": "echo 'Run: npx knip'",
+    "analyze:deps": "echo 'Run: npx depcheck'"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

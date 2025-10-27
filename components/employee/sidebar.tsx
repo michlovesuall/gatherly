@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, UserRound } from "lucide-react";
+import Link from "next/link";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -8,103 +8,105 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@radix-ui/react-collapsible";
-
-// Type definitions for clarity
-interface SubMenuItem {
-  title: string;
-  url: string;
-}
-
-interface MenuItem {
-  title: string;
-  url: string;
-  icon?: React.ElementType;
-  isActive?: boolean;
-  items?: SubMenuItem[];
-  subItems?: SubMenuItem[];
-}
-
-interface AppItem {
-  application: string;
-  subItems: MenuItem[];
-}
-
-const appItems: AppItem[] = [
-  {
-    application: "Dashboard",
-    subItems: [
-      {
-        title: "Staff Dashboard",
-        url: "#",
-        icon: UserRound,
-        isActive: true,
-        items: [
-          { title: "Institution Events", url: "#" },
-          { title: "Event & Clubs Approval", url: "#" },
-          { title: "Post Moderation", url: "#" },
-          { title: "Announcements Summary", url: "#" },
-        ],
-      },
-    ],
-  },
-];
+  Newspaper,
+  Calendar,
+  Users,
+  ClipboardCheck,
+  Shield,
+} from "lucide-react";
 
 export default function EmployeeSideBar() {
   return (
     <>
-      {appItems.map((apps: AppItem) => (
-        <SidebarGroup key={apps.application}>
-          <SidebarGroupLabel>{apps.application}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {apps.subItems.map((item: MenuItem) => (
-                <Collapsible
-                  key={item.title}
-                  asChild
-                  defaultChecked={item.isActive}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild className="cursor-pointer">
-                      <SidebarMenuButton tooltip={item.title}>
-                        {item.icon && <item.icon />}
-                        <span>{item.title}</span>
-                        {(item.items || item.subItems) && (
-                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                        )}
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {(item.items || item.subItems)?.map(
-                          (subItem: SubMenuItem) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton asChild>
-                                <a href={subItem.url}>
-                                  <span>{subItem.title}</span>
-                                </a>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          )
-                        )}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </Collapsible>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
+      <SidebarGroup>
+        <SidebarGroupLabel>Employee</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/feed">
+                  <Newspaper />
+                  <span>Feed</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/feed#events">
+                  <Calendar />
+                  <span>Events</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <SidebarGroup>
+        <SidebarGroupLabel>Advisor</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/approvals">
+                  <ClipboardCheck />
+                  <span>Approvals</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/advisor">
+                  <Users />
+                  <span>Manage Members</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <SidebarGroup>
+        <SidebarGroupLabel>Staff</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/events">
+                  <Calendar />
+                  <span>Manage Events</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/clubs">
+                  <Users />
+                  <span>Manage Clubs</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/manage">
+                  <Shield />
+                  <span>Moderation</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link href="/dashboard/employee/approvals">
+                  <ClipboardCheck />
+                  <span>Approvals</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
     </>
   );
 }

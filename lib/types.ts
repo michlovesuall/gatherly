@@ -27,16 +27,6 @@ export interface EmployeeRegistrationFormProps {
   setOpen: (open: boolean) => void;
 }
 
-export interface StudentRegistrationData {
-  fullName: string;
-  idNumber: string;
-  userEmail: string;
-  userPhone: string;
-  userPassword: string;
-  userConfirmPassword: string;
-  institution?: string;
-}
-
 export type InstitutionOption = {
   id: string;
   value: string;

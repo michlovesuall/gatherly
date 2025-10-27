@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       webDomain: body.webDomain ?? null,
       contactPersonEmail: body.contactPersonEmail,
       slug,
-      status: "pending",
+      status: "approved",
       createdAt: now,
       updatedAt: now,
     };
@@ -138,7 +138,7 @@ export async function GET(req: Request) {
         id: i.institutionId,
         value: i.slug,
         label: i.institutionName,
-        status: coalesce(i.status, "pending")
+        status: coalesce(i.status, "approved")
     } AS option
     ORDER BY i.institutionName ASC
     LIMIT $limit
