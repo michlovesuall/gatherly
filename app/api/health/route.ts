@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
+import { ensureSuperAdmin } from "@/lib/auth/ensure-super-admin";
 import neo4j from "neo4j-driver";
 
 export async function GET() {
+  // Ensure super admin exists on health hits in dev/boot
+  try {
+    await ensureSuperAdmin({ hardenExisting: true });
+  } catch {
+    // ignore seeding errors on health check
+  }
   const envVars = {
     NEO4J_URI: process.env.NEO4J_URI,
     NEO4J_USER: process.env.NEO4J_USER,

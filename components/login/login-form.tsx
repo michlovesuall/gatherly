@@ -70,7 +70,7 @@ export default function LoginForm() {
         router.push("/dashboard/student");
       } else if (role === "employee" || role === "staff") {
         router.push("/dashboard/employee");
-      } else if (role === "admin" || role === "super_admin") {
+      } else if (role === "super_admin") {
         router.push("/dashboard");
       } else {
         router.push("/dashboard");

@@ -1,4 +1,8 @@
-export type PlatformRole = "student" | "employee" | "institution";
+export type PlatformRole =
+  | "student"
+  | "employee"
+  | "institution"
+  | "super_admin";
 
 export type ClubMembership = {
   clubId: string;

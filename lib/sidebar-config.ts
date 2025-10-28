@@ -9,6 +9,14 @@ import {
   Settings as SettingsIcon,
   ClipboardCheck,
   Shield,
+  LayoutDashboard,
+  Landmark,
+  UsersRound,
+  Building2,
+  CalendarCheck2,
+  Megaphone,
+  Activity,
+  MessageSquareWarning,
 } from "lucide-react";
 
 export function studentSidebar(u: SessionUser): SidebarConfig {
@@ -174,8 +182,88 @@ export function institutionSidebar(): SidebarConfig {
   ];
 }
 
+export function superAdminSidebar(): SidebarConfig {
+  return [
+    {
+      title: "Application",
+      items: [
+        {
+          key: "dashboard",
+          label: "Dashboard",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+        },
+      ],
+    },
+    {
+      title: "Management",
+      items: [
+        {
+          key: "institutions",
+          label: "Institutions",
+          href: "/dashboard/admin/institutions",
+          icon: Landmark,
+        },
+        {
+          key: "users",
+          label: "Users",
+          href: "/dashboard/admin/users",
+          icon: UsersRound,
+        },
+        {
+          key: "clubs",
+          label: "Clubs & Organizations",
+          href: "/dashboard/admin/clubs",
+          icon: Building2,
+        },
+        {
+          key: "events",
+          label: "Events",
+          href: "/dashboard/admin/events",
+          icon: CalendarCheck2,
+        },
+        {
+          key: "announcements",
+          label: "Announcements",
+          href: "/dashboard/admin/announcements",
+          icon: Megaphone,
+        },
+      ],
+    },
+    {
+      title: "Moderation",
+      items: [
+        {
+          key: "reports",
+          label: "Content & Reports",
+          href: "/dashboard/admin/moderation",
+          icon: MessageSquareWarning,
+        },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        {
+          key: "system-settings",
+          label: "System Settings",
+          href: "/dashboard/admin/settings",
+          icon: SettingsIcon,
+        },
+        {
+          key: "audit",
+          label: "Audit & Activity Logs",
+          href: "/dashboard/admin/audit",
+          icon: Activity,
+        },
+      ],
+    },
+  ];
+}
+
 export function getSidebarFor(u: SessionUser): SidebarConfig {
   if (u.platformRole === "institution") return institutionSidebar();
+  if (u.platformRole === "super_admin") return superAdminSidebar();
   if (u.platformRole === "employee") return employeeSidebar(u);
   return studentSidebar(u);
 }

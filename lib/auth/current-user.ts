@@ -16,7 +16,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     userId: string;
     name: string;
     avatarUrl?: string;
-    platformRole: "student" | "employee" | "institution";
+    platformRole: "student" | "employee" | "institution" | "super_admin";
     institutionId: string;
     institutionStatus: "pending" | "auto_verified" | "approved" | "rejected";
     clubId?: string;

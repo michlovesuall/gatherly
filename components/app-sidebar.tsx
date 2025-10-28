@@ -20,13 +20,7 @@ import StudentSideBar from "./student/sidebar";
 interface User {
   name: string;
   email: string;
-  role:
-    | "student"
-    | "employee"
-    | "admin"
-    | "institution"
-    | "super_admin"
-    | "staff";
+  role: "student" | "employee" | "institution" | "super_admin" | "staff";
   avatar?: string;
 }
 
@@ -71,7 +65,7 @@ export function AppSidebar() {
     content = <EmployeeSideBar />;
   } else if (user.role === "institution") {
     content = <InstitutionSideBar />;
-  } else if (user.role === "admin" || user.role === "super_admin") {
+  } else if (user.role === "super_admin") {
     content = <AdminSideBar />;
   } else {
     content = <StudentSideBar />;
@@ -82,7 +76,7 @@ export function AppSidebar() {
       <SidebarHeader className="mt-4">
         <SidebarMenu className="flex items-center">
           <SidebarMenuItem className="text-2xl font-bold">
-            Gatherly
+            Gatherly{user.role}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

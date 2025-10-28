@@ -38,13 +38,7 @@ export function NavUser({
     name: string;
     email: string;
     avatar?: string;
-    role?:
-      | "student"
-      | "employee"
-      | "admin"
-      | "institution"
-      | "super_admin"
-      | "staff";
+    role?: "student" | "employee" | "institution" | "super_admin" | "staff";
   };
 }) {
   const { isMobile } = useSidebar();
@@ -62,8 +56,6 @@ export function NavUser({
         return "Employee";
       case "institution":
         return "Institution";
-      case "admin":
-        return "Admin";
       case "super_admin":
         return "Super Admin";
       case "staff":

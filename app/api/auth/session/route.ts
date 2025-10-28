@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { runQuery } from "@/lib/neo4j";
+import { ensureSuperAdmin } from "@/lib/auth/ensure-super-admin";
 
 export async function GET() {
+  // Opportunistically ensure super_admin exists
+  await ensureSuperAdmin({ hardenExisting: true });
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get("session")?.value;
 
   if (!sessionToken) {
-    return NextResponse.json(
-      { user: null },
-      { status: 200 }
-    );
+    return NextResponse.json({ user: null }, { status: 200 });
   }
 
   try {
@@ -35,10 +35,7 @@ export async function GET() {
     );
 
     if (!result.length) {
-      return NextResponse.json(
-        { user: null },
-        { status: 200 }
-      );
+      return NextResponse.json({ user: null }, { status: 200 });
     }
 
     const user = result[0];
@@ -53,10 +50,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Session validation error:", error);
-    return NextResponse.json(
-      { user: null },
-      { status: 200 }
-    );
+    return NextResponse.json({ user: null }, { status: 200 });
   }
 }
-

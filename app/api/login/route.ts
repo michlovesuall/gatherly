@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { runQuery } from "@/lib/neo4j";
 import { randomUUID } from "crypto";
+import { ensureSuperAdmin } from "@/lib/auth/ensure-super-admin";
 
 function makeSessionToken() {
   return randomUUID();
@@ -9,6 +10,8 @@ function makeSessionToken() {
 
 export async function POST(req: Request) {
   try {
+    // Ensure a protected super_admin exists (no-op if present)
+    await ensureSuperAdmin({ hardenExisting: true });
     const { email, password } = await req.json();
 
     if (!email || !password) {

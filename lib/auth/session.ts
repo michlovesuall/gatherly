@@ -3,13 +3,7 @@ import { runQuery } from "@/lib/neo4j";
 
 export interface Session {
   userId: string;
-  role:
-    | "student"
-    | "employee"
-    | "admin"
-    | "institution"
-    | "super_admin"
-    | "staff";
+  role: "student" | "employee" | "institution" | "super_admin" | "staff";
   institutionId: string;
   email: string;
   name: string;
@@ -45,7 +39,6 @@ export async function getSession(): Promise<Session | null> {
         CASE 
           WHEN u.platformRole = "student" THEN "student"
           WHEN u.platformRole = "employee" THEN "employee"
-          WHEN u.platformRole = "admin" THEN "admin"
           WHEN u.platformRole = "super_admin" THEN "super_admin"
           WHEN u.platformRole = "institution" THEN "institution"
           ELSE "staff"
