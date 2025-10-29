@@ -47,12 +47,13 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(body.password, 12);
 
     const createCypher = `
-      MATCH (i:Institution)
+      MATCH (i)
       WHERE ${
         body.institutionId
-          ? "i.institutionId = $institutionId"
+          ? "(i.userId = $institutionId OR i.institutionId = $institutionId)"
           : "i.slug = $institutionSlug"
       }
+        AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       CREATE (u:User {
         userId: $userId,
         name: $name,

@@ -29,34 +29,33 @@ import {
   CollapsibleTrigger,
 } from "@radix-ui/react-collapsible";
 
-interface SubMenuItem {
+interface ChildLink {
   title: string;
   url: string;
 }
 
-interface MenuItem {
+interface SectionItem {
   title: string;
   url: string;
   icon?: React.ElementType;
   isActive?: boolean;
-  items?: SubMenuItem[];
-  subItems?: SubMenuItem[];
+  children?: ChildLink[];
 }
 
-interface AppItem {
+interface Section {
   application: string;
-  subItems: MenuItem[];
+  items: SectionItem[];
 }
 
-const appItems: AppItem[] = [
+const sections: Section[] = [
   {
     application: "Application",
-    subItems: [
+    items: [
       {
         title: "Dashboard",
         url: "#",
         icon: LayoutDashboard,
-        items: [
+        children: [
           { title: "Institution Overview", url: "#" },
           { title: "Recent Activities", url: "#" },
           { title: "Reports Overview", url: "#" },
@@ -66,12 +65,12 @@ const appItems: AppItem[] = [
   },
   {
     application: "Management",
-    subItems: [
+    items: [
       {
         title: "Users",
         url: "#",
         icon: UsersRound,
-        items: [
+        children: [
           { title: "User Overview", url: "#" },
           { title: "Verification & Control", url: "#" },
           { title: "Role Assignment", url: "#" },
@@ -81,7 +80,7 @@ const appItems: AppItem[] = [
         title: "Clubs & Organization",
         url: "#",
         icon: Building2,
-        items: [
+        children: [
           { title: "Club Overview", url: "#" },
           { title: "Club Approval & Moderation", url: "#" },
           { title: "Club Profile", url: "#" },
@@ -91,7 +90,7 @@ const appItems: AppItem[] = [
         title: "Events",
         url: "#",
         icon: CalendarCheck2,
-        items: [
+        children: [
           { title: "Event Overview", url: "#" },
           { title: "Event Approval Queue", url: "#" },
           { title: "Attendance & Feedback", url: "#" },
@@ -101,21 +100,21 @@ const appItems: AppItem[] = [
         title: "Announcements",
         url: "#",
         icon: Megaphone,
-        items: [
+        children: [
           { title: "Announcement Overview", url: "#" },
-          { title: "Insitution Announcements", url: "#" },
+          { title: "Institution Announcements", url: "#" },
         ],
       },
     ],
   },
   {
     application: "Feedback",
-    subItems: [
+    items: [
       {
         title: "Feedback & Certificates",
         url: "#",
         icon: MessageCircleQuestionMark,
-        items: [
+        children: [
           { title: "Feedback Dashboard", url: "#" },
           { title: "Certificate Overview", url: "#" },
         ],
@@ -124,12 +123,12 @@ const appItems: AppItem[] = [
   },
   {
     application: "Content Moderation",
-    subItems: [
+    items: [
       {
         title: "Moderation and Reports",
         url: "#",
         icon: MessageSquareWarning,
-        items: [
+        children: [
           { title: "Report Content", url: "#" },
           { title: "Institution Audit Logs", url: "#" },
         ],
@@ -137,13 +136,13 @@ const appItems: AppItem[] = [
     ],
   },
   {
-    application: "Insitution Settings",
-    subItems: [
+    application: "Institution Settings",
+    items: [
       {
         title: "Settings",
         url: "#",
         icon: Settings,
-        items: [
+        children: [
           { title: "Profile Settings", url: "#" },
           { title: "Institution Preferences", url: "#" },
         ],
@@ -152,12 +151,12 @@ const appItems: AppItem[] = [
   },
   {
     application: "Logs",
-    subItems: [
+    items: [
       {
         title: "Audit & Activity History",
         url: "#",
         icon: Logs,
-        items: [
+        children: [
           { title: "Activity Log", url: "#" },
           { title: "Audit Export", url: "#" },
         ],
@@ -169,12 +168,12 @@ const appItems: AppItem[] = [
 export default function InstitutionSideBar() {
   return (
     <>
-      {appItems.map((apps: AppItem) => (
-        <SidebarGroup key={apps.application}>
-          <SidebarGroupLabel>{apps.application}</SidebarGroupLabel>
+      {sections.map((section) => (
+        <SidebarGroup key={section.application}>
+          <SidebarGroupLabel>{section.application}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {apps.subItems.map((item: MenuItem) => (
+              {section.items.map((item) => (
                 <Collapsible
                   key={item.title}
                   asChild
@@ -186,24 +185,22 @@ export default function InstitutionSideBar() {
                       <SidebarMenuButton tooltip={item.title}>
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
-                        {(item.items || item.subItems) && (
+                        {item.children && item.children.length > 0 && (
                           <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                         )}
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {(item.items || item.subItems)?.map(
-                          (subItem: SubMenuItem) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton asChild>
-                                <a href={subItem.url}>
-                                  <span>{subItem.title}</span>
-                                </a>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          )
-                        )}
+                        {item.children?.map((child) => (
+                          <SidebarMenuSubItem key={child.title}>
+                            <SidebarMenuSubButton asChild>
+                              <a href={child.url}>
+                                <span>{child.title}</span>
+                              </a>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>

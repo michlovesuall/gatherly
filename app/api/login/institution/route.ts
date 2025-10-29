@@ -9,9 +9,9 @@ function makeSessionToken() {
 
 export async function POST(req: Request) {
   try {
-    const { emailDomain, password } = await req.json();
+    const { email, password } = await req.json();
 
-    if (!emailDomain || !password) {
+    if (!email || !password) {
       return NextResponse.json(
         {
           ok: false,
@@ -22,13 +22,13 @@ export async function POST(req: Request) {
     }
 
     const cypher = `
-      MATCH (i:Institution)
-      WHERE i.emailDomain = $emailDomain OR $emailDomain CONTAINS i.emailDomain
+      MATCH (i:User {platformRole: "institution"})
+      WHERE toLower(i.email) = toLower($email)
       RETURN {
-        institutionId: i.institutionId,
-        institutionName: i.institutionName,
+        institutionId: i.userId,
+        institutionName: i.name,
         hashedPassword: i.hashedPassword,
-        status: coalesce(i.status, "approved"),
+        status: coalesce(i.status, "active"),
         platformRole: "institution"
       } AS inst
       LIMIT 1
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         status: string;
         platformRole: string;
       };
-    }>(cypher, { emailDomain });
+    }>(cypher, { email });
 
     if (!rows.length) {
       return NextResponse.json(
@@ -60,7 +60,10 @@ export async function POST(req: Request) {
       );
     }
 
-    if (inst.status && inst.status.toLowerCase() !== "approved") {
+    if (
+      inst.status &&
+      !["approved", "active"].includes(inst.status.toLowerCase())
+    ) {
       return NextResponse.json(
         { ok: false, error: "Institution account is not approved" },
         { status: 403 }
@@ -69,10 +72,10 @@ export async function POST(req: Request) {
 
     const token = makeSessionToken();
 
-    // Persist Session node for institution entity
+    // Persist Session node for institution entity (User-labeled node)
     await runQuery(
       `
-      MATCH (i:Institution {institutionId: $institutionId})
+      MATCH (i:User {userId: $institutionId, platformRole: "institution"})
       CREATE (s:Session {token: $token, createdAt: datetime()})
       MERGE (i)-[:HAS_SESSION]->(s)
     `,
@@ -84,7 +87,7 @@ export async function POST(req: Request) {
       user: {
         userId: inst.institutionId,
         name: inst.institutionName,
-        email: emailDomain,
+        email,
         platformRole: "institution",
       },
     });

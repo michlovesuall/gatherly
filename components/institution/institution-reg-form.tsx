@@ -7,9 +7,26 @@ import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import type { InstitutionRegistrationData } from "@/lib/types";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-export default function InstitutionRegistrationForm() {
+export default function InstitutionRegistrationForm({
+  onSuccessLogin,
+}: {
+  onSuccessLogin?: () => void;
+}) {
   const [passwordError, setPasswordError] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogSuccess, setDialogSuccess] = useState<boolean | null>(null);
+  const [dialogMessage, setDialogMessage] = useState<string>("");
+  const router = useRouter();
 
   const {
     register,
@@ -25,9 +42,12 @@ export default function InstitutionRegistrationForm() {
     }
 
     const payload = {
-      institutionName: data.institutionName,
+      name: data.name,
+      idNumber: data.idNumber || null,
       password: data.institutionPassword,
-      emailDomain: data.emailDomain || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      avatarUrl: null,
       webDomain: data.webDomain || null,
       contactPersonEmail: data.contactPersonEmail,
     };
@@ -39,17 +59,23 @@ export default function InstitutionRegistrationForm() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-
-      if (!res.ok) {
-        alert(json.error || "Registration Failed.");
+      if (!res.ok || !json?.ok) {
+        setDialogSuccess(false);
+        setDialogMessage(json?.error || `Registration failed (${res.status})`);
+        setDialogOpen(true);
         return;
       }
 
       setPasswordError("");
-      alert("Institution registered successfully.");
+      setDialogSuccess(true);
+      setDialogMessage("Institution registered successfully.");
+      setDialogOpen(true);
       reset();
+      onSuccessLogin?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      setDialogSuccess(false);
+      setDialogMessage(e instanceof Error ? e.message : String(e));
+      setDialogOpen(true);
     }
   };
 
@@ -71,24 +97,34 @@ export default function InstitutionRegistrationForm() {
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="institutionName">
-              Institution Name<span className="text-red-600 m-0 p-0">*</span>
+            <Label htmlFor="name">
+              Name<span className="text-red-600 m-0 p-0">*</span>
             </Label>
-            {/* Institution Name. Example: Partido State University */}
+            {/* Name. Example: Partido State University */}
             <Input
-              id="institutionName"
+              id="name"
               type="text"
               placeholder="Partido State University"
               required
-              {...register("institutionName", {
-                required: "Institution name is required.",
+              {...register("name", {
+                required: "Name is required.",
               })}
             />
             <p className="text-red-500 text-xs">
-              {errors.institutionName && (
-                <span>{errors.institutionName.message}</span>
-              )}
+              {errors.name && <span>{errors.name.message}</span>}
             </p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="idNumber">
+              School ID<span className="text-red-600 m-0 p-0">*</span>
+            </Label>
+            <Input
+              id="idNumber"
+              type="text"
+              placeholder="Ex. SCHOOL-ID-12345"
+              required
+              {...register("idNumber", { required: "School ID is required." })}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="institutionEmail">
@@ -96,17 +132,29 @@ export default function InstitutionRegistrationForm() {
             </Label>
             {/* Institution Email. Example: parsu@edu.ph */}
             <Input
-              id="emailDomain"
+              id="email"
               type="email"
               placeholder="parsu@example.com"
               required
-              {...register("emailDomain", {
+              {...register("email", {
                 required: "Email is required.",
               })}
             />
             <p className="text-red-500 text-xs">
-              {errors.emailDomain && <span>{errors.emailDomain.message}</span>}
+              {errors.email && <span>{errors.email.message}</span>}
             </p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="phone">
+              Phone<span className="text-red-600 m-0 p-0">*</span>
+            </Label>
+            <Input
+              id="phone"
+              type="text"
+              placeholder="09xx-xxx-xxxx"
+              required
+              {...register("phone", { required: "Phone number is required." })}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="webDomain">Website</Label>
@@ -196,6 +244,41 @@ export default function InstitutionRegistrationForm() {
           </Button>
         </div>
       </form>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dialogSuccess
+                ? "Registration Successful"
+                : "Registration Failed"}
+            </DialogTitle>
+            <DialogDescription>{dialogMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {dialogSuccess ? (
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setDialogOpen(false);
+                  router.push("/");
+                  router.refresh();
+                }}
+              >
+                Back to Login
+              </Button>
+            ) : (
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => setDialogOpen(false)}
+              >
+                Re-enter Details
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

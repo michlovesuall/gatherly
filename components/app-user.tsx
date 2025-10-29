@@ -47,7 +47,15 @@ export function NavUser({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const role = user.role || "student";
-  const displayName = (user.name ?? "").trim() || "User";
+  const displayName = (() => {
+    const n = (user.name ?? "").trim();
+    if (n) return n;
+    if (role === "institution") {
+      const emailName = (user.email ?? "").split("@")[0]?.trim();
+      return emailName || "Institution";
+    }
+    return "User";
+  })();
   const roleLabel = (() => {
     switch (role) {
       case "student":

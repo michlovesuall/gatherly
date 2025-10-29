@@ -23,34 +23,19 @@ export default function LoginForm() {
     register,
     handleSubmit,
     formState: { isSubmitting, errors },
-    reset,
   } = useForm<LoginFields>();
 
   const [serverError, setServerError] = useState<string | null>(null);
-  const [loginAsInstitution, setLoginAsInstitution] = useState(false);
 
   const onSubmit = async (values: LoginFields) => {
     setServerError(null);
 
     try {
-      let res: Response;
-      if (loginAsInstitution) {
-        // Institution login uses emailDomain and password
-        res = await fetch("/api/login/institution", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            emailDomain: values.email,
-            password: values.password,
-          }),
-        });
-      } else {
-        res = await fetch("/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        });
-      }
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
 
       const ct = res.headers.get("content-type") || "";
       const data = ct.includes("application/json")
@@ -64,7 +49,7 @@ export default function LoginForm() {
 
       // Redirect based on user role
       const role = data.user?.platformRole || data.role;
-      if (loginAsInstitution || role === "institution") {
+      if (role === "institution") {
         router.push("/dashboard");
       } else if (role === "student") {
         router.push("/dashboard/student");
@@ -90,31 +75,12 @@ export default function LoginForm() {
           <div className="flex flex-col gap-4">
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="email">
-                  {loginAsInstitution ? "Institution Email" : "Email"}
-                </Label>
-                <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    className="accent-primary"
-                    checked={loginAsInstitution}
-                    onChange={(e) => {
-                      setLoginAsInstitution(e.target.checked);
-                      setServerError(null);
-                      reset({ password: "" });
-                    }}
-                  />
-                  Login as Institution
-                </label>
+                <Label htmlFor="email">Email</Label>
               </div>
               <Input
                 id="email"
-                type={loginAsInstitution ? "email" : "email"}
-                placeholder={
-                  loginAsInstitution
-                    ? "parsu@example.com"
-                    : "johndoe@example.com"
-                }
+                type="email"
+                placeholder="you@example.com"
                 required
                 {...register("email", { required: "Email is required" })}
               />

@@ -64,11 +64,22 @@ export async function POST(req: Request) {
       );
     }
 
-    if (user.status && user.status.toLowerCase() !== "active") {
-      return NextResponse.json(
-        { ok: false, error: "Account is not active" },
-        { status: 403 }
-      );
+    // Status gate: allow institutions with status "active" or "approved"; others must be "active"
+    if (user.status) {
+      const s = user.status.toLowerCase();
+      if (user.platformRole === "institution") {
+        if (s !== "active" && s !== "approved") {
+          return NextResponse.json(
+            { ok: false, error: "Institution account is not approved" },
+            { status: 403 }
+          );
+        }
+      } else if (s !== "active") {
+        return NextResponse.json(
+          { ok: false, error: "Account is not active" },
+          { status: 403 }
+        );
+      }
     }
 
     const token = makeSessionToken();

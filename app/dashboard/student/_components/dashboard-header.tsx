@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { useEffect, useState } from "react";
 
 export interface DashboardHeaderProps {
   studentName: string;
@@ -21,10 +22,14 @@ export function DashboardHeader({
     .map((n) => n[0])
     .join("")
     .toUpperCase();
-
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  // Compute greeting client-side to avoid hydration mismatch
+  const [greeting, setGreeting] = useState<string>("");
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setGreeting(
+      hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+    );
+  }, []);
 
   return (
     <Card>
@@ -37,7 +42,8 @@ export function DashboardHeader({
             </Avatar>
             <div>
               <h1 className="text-2xl font-semibold">
-                {greeting}, {studentName.split(" ")[0]}
+                <span suppressHydrationWarning>{greeting || "Welcome"}</span>,{" "}
+                {studentName.split(" ")[0]}
               </h1>
               <p className="text-sm text-muted-foreground">{institutionName}</p>
             </div>

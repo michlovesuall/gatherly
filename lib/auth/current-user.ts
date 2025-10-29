@@ -12,6 +12,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = cookieStore.get("session")?.value;
   if (!token) return null;
 
+  // Try user-based session first
   const rows = await runQuery<{
     userId: string;
     name: string;
@@ -31,7 +32,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     RETURN u.userId AS userId,
            u.name AS name,
            u.avatarUrl AS avatarUrl,
-           coalesce(u.platformRole, "student") AS platformRole,
+           coalesce(toLower(u.platformRole), "student") AS platformRole,
            coalesce(i.institutionId, "") AS institutionId,
            coalesce(i.status, "approved") AS institutionStatus,
            clubs
@@ -40,7 +41,55 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     { token }
   );
 
-  if (!rows.length) return null;
+  // Fallback to institution session if no User session exists
+  if (!rows.length) {
+    const inst = await runQuery<{
+      institutionId: string;
+      institutionName: string;
+    }>(
+      `
+      MATCH (s:Session {token: $token})<-[:HAS_SESSION]-(i:User {platformRole: "institution"})
+      RETURN i.userId AS institutionId,
+             coalesce(i.name, "Institution") AS institutionName
+      LIMIT 1
+      `,
+      { token }
+    );
+    if (!inst.length) {
+      // Legacy fallback: Institution-labeled node
+      const legacy = await runQuery<{
+        institutionId: string;
+        institutionName: string;
+      }>(
+        `
+        MATCH (s:Session {token: $token})<-[:HAS_SESSION]-(i:Institution)
+        RETURN coalesce(i.userId, i.institutionId) AS institutionId,
+               coalesce(i.name, i.institutionName, "Institution") AS institutionName
+        LIMIT 1
+        `,
+        { token }
+      );
+      if (!legacy.length) return null;
+      const l = legacy[0];
+      const user: SessionUser = {
+        userId: l.institutionId,
+        name: l.institutionName,
+        platformRole: "institution",
+        institution: { institutionId: l.institutionId, status: "approved" },
+        clubs: [],
+      } as SessionUser;
+      return user;
+    }
+    const i = inst[0];
+    const user: SessionUser = {
+      userId: i.institutionId,
+      name: i.institutionName,
+      platformRole: "institution",
+      institution: { institutionId: i.institutionId, status: "approved" },
+      clubs: [],
+    } as SessionUser;
+    return user;
+  }
 
   const row: any = rows[0];
   const clubs: ClubMembership[] = Array.isArray(row.clubs)

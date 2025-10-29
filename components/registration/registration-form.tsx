@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 // Import Types
 import { InstitutionOption, RegisterTabKey } from "@/lib/types";
+import type { TabKey } from "@/lib/types";
 
 // Custome Components
 import InstitutionRegistrationForm from "@/components/institution/institution-reg-form";
@@ -21,9 +22,11 @@ const isRegisterTabKey = (v: string): v is RegisterTabKeySafe =>
 export default function RegistrationForm({
   registerTab,
   setRegisterTab,
+  setMainTab,
 }: {
   registerTab: RegisterTabKey;
   setRegisterTab: (k: RegisterTabKey) => void;
+  setMainTab: (k: TabKey) => void;
 }) {
   const [studentInstitution, setStudentInstitution] = useState("");
   const [studentOpen, setStudentOpen] = useState(false);
@@ -109,6 +112,7 @@ export default function RegistrationForm({
                 setInstitutionValue={setStudentInstitution}
                 open={studentOpen}
                 setOpen={setStudentOpen}
+                onSuccessLogin={() => setMainTab("login")}
               />
             )}
             {registerTab === "employee" && (
@@ -120,9 +124,14 @@ export default function RegistrationForm({
                 setInstitutionValue={setEmployeeInstitution}
                 open={employeeOpen}
                 setOpen={setEmployeeOpen}
+                onSuccessLogin={() => setMainTab("login")}
               />
             )}
-            {registerTab === "institution" && <InstitutionRegistrationForm />}
+            {registerTab === "institution" && (
+              <InstitutionRegistrationForm
+                onSuccessLogin={() => setMainTab("login")}
+              />
+            )}
 
             <div className="flex flex-col gap-2">
               <Button

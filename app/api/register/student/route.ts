@@ -26,8 +26,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    // Checks if institution fields has values
-    if (!body.institutionId || !body.institutionSlug) {
+    // Checks if institution fields has values (require at least one)
+    if (!body.institutionId && !body.institutionSlug) {
       return NextResponse.json(
         { ok: false, error: "Missing institution selection" },
         { status: 400 }
@@ -64,10 +64,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // Match the institution Node
+    // Match the institution Node (supports new userId and legacy institutionId)
     const matchInstitutionCyper = body.institutionId
-      ? `MATCH (i:Institution {institutionId: $institutionId}) RETURN i LIMIT 1`
-      : `MATCH (i:Institution {slug: $institutionSlug}) RETURN i LIMIT 1`;
+      ? `MATCH (i)
+         WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+         RETURN i LIMIT 1`
+      : `MATCH (i)
+         WHERE i.slug = $institutionSlug
+           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+         RETURN i LIMIT 1`;
 
     const instParams = body.institutionId
       ? { institutionId: body.institutionId }
@@ -86,12 +92,13 @@ export async function POST(req: Request) {
 
     // Create the student
     const createCypher = `
-      MATCH (i:Institution)
+      MATCH (i)
       WHERE ${
         body.institutionId
-          ? "i.institutionId = $institutionId"
+          ? "(i.userId = $institutionId OR i.institutionId = $institutionId)"
           : "i.slug = $institutionSlug"
       }
+        AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       CREATE (u:User {
         userId: $userId,
         name: $name,

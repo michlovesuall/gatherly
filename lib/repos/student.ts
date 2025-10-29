@@ -55,10 +55,10 @@ export async function getStudentContext(
   }>(
     `
     MATCH (u:User {userId: $userId})
-    OPTIONAL MATCH (u)-[:MEMBER_OF]->(i:Institution)
+    OPTIONAL MATCH (u)-[:MEMBER_OF]->(i)
     OPTIONAL MATCH (u)-[:MEMBER_OF_CLUB]->(c:Club {status: "approved"})
     RETURN u.name AS studentName, 
-           COALESCE(i.institutionName, "") AS institutionName,
+           COALESCE(i.name, i.institutionName, "") AS institutionName,
            COALESCE(u.avatarUrl, "") AS avatarUrl,
            COUNT(DISTINCT c) AS clubsCount
     `,
@@ -93,7 +93,9 @@ export async function getEventFeed(
     rsvpState?: string;
   }>(
     `
-    MATCH (i:Institution {institutionId: $institutionId})
+    MATCH (i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
     MATCH (e:Event)-[:BELONGS_TO]->(i)
     WHERE e.visibility IN ["public", "institution"]
       AND e.status IN ["approved", "published"]
@@ -293,8 +295,9 @@ export async function getClubAnnouncements(
   }>(
     `
     MATCH (u:User {userId: $userId})-[:MEMBER_OF_CLUB]->(c:Club {status: "approved"})
-    MATCH (c)-[:BELONGS_TO]->(i:Institution)<-[:BELONGS_TO]-(a:Announcement)
-    WHERE a.status = "published"
+    MATCH (c)-[:BELONGS_TO]->(i)<-[:BELONGS_TO]-(a:Announcement)
+    WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+      AND a.status = "published"
     RETURN a.announcementId AS id,
            c.name AS clubName,
            a.title AS title,

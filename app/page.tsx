@@ -109,6 +109,7 @@ export default function Home() {
               <RegistrationForm
                 registerTab={registerTab}
                 setRegisterTab={setRegisterTab}
+                setMainTab={setTab}
                 value={value}
                 setValue={setValue}
                 open={open}

@@ -20,7 +20,16 @@ import {
 } from "@/components/ui/command";
 
 // Utility Imports
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import type { InstitutionOption } from "@/lib/types";
 
@@ -42,6 +51,7 @@ interface StudentFormProps {
   setInstitutionValue: (val: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
+  onSuccessLogin?: () => void;
 }
 
 export default function StudentRegistrationForm({
@@ -53,11 +63,16 @@ export default function StudentRegistrationForm({
   open,
   setOpen,
 }: StudentFormProps) {
+  const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogSuccess, setDialogSuccess] = useState<boolean | null>(null);
+  const [dialogMessage, setDialogMessage] = useState<string>("");
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    setError,
   } = useForm<StudentRegistrationData>();
 
   const selectedLabel = useMemo(
@@ -100,15 +115,42 @@ export default function StudentRegistrationForm({
         ? await res.json()
         : { ok: false, error: await res.text() };
 
-      if (!res.ok) {
-        alert(json.error || `Registration failed (${res.status})`);
+      if (!res.ok || !json?.ok) {
+        const msg = String(
+          json?.error || `Registration failed (${res.status})`
+        );
+        // Try to map to specific fields without clearing the form
+        if (/email/i.test(msg)) {
+          setError("userEmail", { type: "server", message: msg });
+        }
+        if (/student\s*id|id\s*number/i.test(msg)) {
+          setError("idNumber", { type: "server", message: msg });
+        }
+        if (/institution/i.test(msg)) {
+          // show under the institution selector helper
+          // we rely on the existing institutionError rendering path
+        }
+        setDialogSuccess(false);
+        setDialogMessage(msg);
+        setDialogOpen(true);
+        return;
       }
 
-      alert("Student registered successfully!");
+      setDialogSuccess(true);
+      setDialogMessage("Student registered successfully!");
+      setDialogOpen(true);
       reset();
       setInstitutionValue("");
+      try {
+        onSuccessLogin?.();
+      } catch (e) {
+        // Do not downgrade success to failure; just log it
+        console.error("onSuccessLogin callback failed", e);
+      }
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      setDialogSuccess(false);
+      setDialogMessage(e instanceof Error ? e.message : String(e));
+      setDialogOpen(true);
     }
   };
 
@@ -293,6 +335,41 @@ export default function StudentRegistrationForm({
           </Button>
         </div>
       </form>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dialogSuccess
+                ? "Registration Successful"
+                : "Registration Failed"}
+            </DialogTitle>
+            <DialogDescription>{dialogMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {dialogSuccess ? (
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setDialogOpen(false);
+                  router.push("/");
+                  router.refresh();
+                }}
+              >
+                Back to Login
+              </Button>
+            ) : (
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => setDialogOpen(false)}
+              >
+                Re-enter Details
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

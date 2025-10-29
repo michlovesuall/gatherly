@@ -20,7 +20,16 @@ import {
 
 // Utility Imports
 import { useForm } from "react-hook-form";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import type { InstitutionOption, EmployeeRegistrationData } from "@/lib/types";
 
 interface EmployeeFormProps {
@@ -31,6 +40,7 @@ interface EmployeeFormProps {
   setInstitutionValue: (val: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
+  onSuccessLogin?: () => void;
 }
 
 export default function EmployeeRegistrationForm({
@@ -42,11 +52,16 @@ export default function EmployeeRegistrationForm({
   open,
   setOpen,
 }: EmployeeFormProps) {
+  const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogSuccess, setDialogSuccess] = useState<boolean | null>(null);
+  const [dialogMessage, setDialogMessage] = useState<string>("");
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    setError,
   } = useForm<EmployeeRegistrationData>();
 
   const selectedLabel = useMemo(
@@ -89,16 +104,40 @@ export default function EmployeeRegistrationForm({
         ? await res.json()
         : { ok: false, error: await res.text() };
 
-      if (!res.ok) {
-        alert(json.error || `Registration failed (${res.status})`);
+      if (!res.ok || !json?.ok) {
+        const msg = String(
+          json?.error || `Registration failed (${res.status})`
+        );
+        // Map server errors to specific fields where possible
+        if (/email/i.test(msg)) {
+          setError("userEmail", { type: "server", message: msg });
+        }
+        if (/(employee\s*number|id\s*number)/i.test(msg)) {
+          setError("idNumber", { type: "server", message: msg });
+        }
+        if (/institution/i.test(msg)) {
+          // selector error is surfaced by existing institutionError rendering
+        }
+        setDialogSuccess(false);
+        setDialogMessage(msg);
+        setDialogOpen(true);
         return;
       }
 
-      alert("Employee registered successfully!");
+      setDialogSuccess(true);
+      setDialogMessage("Employee registered successfully!");
+      setDialogOpen(true);
       reset();
       setInstitutionValue("");
+      try {
+        onSuccessLogin?.();
+      } catch (e) {
+        console.error("onSuccessLogin callback failed", e);
+      }
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      setDialogSuccess(false);
+      setDialogMessage(e instanceof Error ? e.message : String(e));
+      setDialogOpen(true);
     }
   };
 
@@ -283,6 +322,41 @@ export default function EmployeeRegistrationForm({
           </Button>
         </div>
       </form>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dialogSuccess
+                ? "Registration Successful"
+                : "Registration Failed"}
+            </DialogTitle>
+            <DialogDescription>{dialogMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {dialogSuccess ? (
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setDialogOpen(false);
+                  router.push("/");
+                  router.refresh();
+                }}
+              >
+                Back to Login
+              </Button>
+            ) : (
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => setDialogOpen(false)}
+              >
+                Re-enter Details
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

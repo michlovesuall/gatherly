@@ -159,24 +159,136 @@ export function employeeSidebar(u: SessionUser): SidebarConfig {
 export function institutionSidebar(): SidebarConfig {
   return [
     {
+      title: "Dashboard",
       items: [
-        { key: "overview", label: "Overview", href: "/dashboard" },
-        { key: "users", label: "Users", href: "/dashboard/users" },
-        { key: "clubs", label: "Clubs", href: "/dashboard/clubs" },
-        { key: "events", label: "Events", href: "/dashboard/events" },
+        {
+          key: "overview",
+          label: "Overview",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+        },
+      ],
+    },
+    {
+      title: "Users",
+      items: [
+        {
+          key: "users",
+          label: "Directory",
+          href: "/dashboard/institution/users",
+          icon: UsersRound,
+        },
+        {
+          key: "verification",
+          label: "Verifications",
+          href: "/dashboard/institution/users/verification",
+          icon: ClipboardCheck,
+          badgeCountKey: "approvals",
+        },
+        {
+          key: "advisors",
+          label: "Advisors",
+          href: "/dashboard/institution/advisors",
+          icon: Users,
+        },
+      ],
+    },
+    {
+      title: "Clubs & Orgs",
+      items: [
+        {
+          key: "clubs",
+          label: "Manage Clubs",
+          href: "/dashboard/institution/clubs",
+          icon: Building2,
+        },
+        {
+          key: "club-approvals",
+          label: "Club Approvals",
+          href: "/dashboard/institution/clubs/approvals",
+          icon: ClipboardCheck,
+          badgeCountKey: "approvals",
+        },
+      ],
+    },
+    {
+      title: "Events",
+      items: [
+        {
+          key: "events",
+          label: "Manage Events",
+          href: "/dashboard/institution/events",
+          icon: CalendarCheck2,
+        },
+        {
+          key: "event-approvals",
+          label: "Event Approvals",
+          href: "/dashboard/institution/events/approvals",
+          icon: ClipboardCheck,
+          badgeCountKey: "approvals",
+        },
+      ],
+    },
+    {
+      title: "Announcements",
+      items: [
         {
           key: "announcements",
           label: "Announcements",
-          href: "/dashboard/announcements",
+          href: "/dashboard/institution/announcements",
+          icon: Megaphone,
+        },
+      ],
+    },
+    {
+      title: "Moderation",
+      items: [
+        {
+          key: "moderation",
+          label: "Content Moderation",
+          href: "/dashboard/institution/moderation",
+          icon: MessageSquareWarning,
         },
         {
-          key: "approvals",
-          label: "Approvals",
-          href: "/dashboard/approvals",
-          badgeCountKey: "approvals",
+          key: "policies",
+          label: "Policies & Guidelines",
+          href: "/dashboard/institution/policies",
+          icon: Shield,
         },
-        { key: "analytics", label: "Analytics", href: "/dashboard/analytics" },
-        { key: "settings", label: "Settings", href: "/dashboard/settings" },
+      ],
+    },
+    {
+      title: "Analytics & Logs",
+      items: [
+        {
+          key: "analytics",
+          label: "Analytics",
+          href: "/dashboard/institution/analytics",
+          icon: Activity,
+        },
+        {
+          key: "logs",
+          label: "Audit Logs",
+          href: "/dashboard/institution/logs",
+          icon: Activity,
+        },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        {
+          key: "settings",
+          label: "Institution Settings",
+          href: "/dashboard/institution/settings",
+          icon: SettingsIcon,
+        },
+        {
+          key: "branding",
+          label: "Branding",
+          href: "/dashboard/institution/settings/branding",
+          icon: Landmark,
+        },
       ],
     },
   ];

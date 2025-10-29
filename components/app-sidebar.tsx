@@ -76,7 +76,7 @@ export function AppSidebar() {
       <SidebarHeader className="mt-4">
         <SidebarMenu className="flex items-center">
           <SidebarMenuItem className="text-2xl font-bold">
-            Gatherly{user.role}
+            Gatherly
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

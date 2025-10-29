@@ -6,10 +6,12 @@ import type { InstitutionOption } from "@/lib/types";
 import neo4j from "neo4j-driver";
 
 interface InstitutionRecord {
-  institutionId: string;
-  institutionName: string;
+  userId: string;
+  name: string;
+  idNumber?: string | null;
   hashedPassword: string;
-  emailDomain?: string | null;
+  email?: string | null;
+  phone?: string | null;
   webDomain?: string | null;
   contactPersonEmail: string;
   slug: string;
@@ -19,15 +21,18 @@ interface InstitutionRecord {
 }
 
 interface InstitutionRequestBody {
-  institutionName: string;
+  name: string;
   password: string;
-  emailDomain?: string | null;
+  email?: string | null;
+  idNumber?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
   webDomain?: string | null;
   contactPersonEmail: string;
 }
 
-function slugify(name: string) {
-  return name
+function slugify(v: string) {
+  return v
     .toLowerCase()
     .trim()
     .replace(/['"]/g, "")
@@ -41,10 +46,12 @@ function isoNow() {
 
 function validate(body: InstitutionRequestBody) {
   const errors: string[] = [];
-  if (!body?.institutionName || typeof body.institutionName !== "string")
-    errors.push("institutionName is required");
+  if (!body?.name || typeof body.name !== "string")
+    errors.push("name is required");
   if (!body?.password || typeof body.password !== "string")
     errors.push("password is required");
+  if (!body?.email || typeof body.email !== "string")
+    errors.push("email is required");
   if (!body?.contactPersonEmail || typeof body.contactPersonEmail !== "string")
     errors.push("contactPersonEmail is required");
   if (errors.length) throw new Error(errors.join(", "));
@@ -55,34 +62,41 @@ export async function POST(req: Request) {
     const body = await req.json();
     validate(body);
 
-    const institutionId = randomUUID();
-    const slug = slugify(body.institutionName);
+    const userId = randomUUID();
+    const slug = slugify(body.name);
     const now = isoNow();
     const hashedPassword = await bcrypt.hash(body.password, 12);
 
     const params = {
-      institutionId,
-      institutionName: body.institutionName,
+      userId,
+      name: body.name,
+      idNumber: body.idNumber ?? null,
       hashedPassword,
-      emailDomain: body.emailDomain ?? null,
+      email: body.email ?? null,
+      phone: body.phone ?? null,
+      avatarUrl: body.avatarUrl ?? null,
       webDomain: body.webDomain ?? null,
       contactPersonEmail: body.contactPersonEmail,
       slug,
-      status: "approved",
+      status: "active",
       createdAt: now,
       updatedAt: now,
     };
 
     const cypher = `
-      CREATE (i:Institution {
-        institutionId:$institutionId,
-        institutionName:$institutionName,
+      CREATE (i:User {
+        userId:$userId,
+        name:$name,
+        idNumber:$idNumber,
         hashedPassword:$hashedPassword,
-        emailDomain:$emailDomain,
+        email:$email,
+        phone:$phone,
+        avatarUrl:$avatarUrl,
         webDomain:$webDomain,
         contactPersonEmail:$contactPersonEmail,
         slug:$slug,
         status:$status,
+        platformRole:"institution",
         createdAt:$createdAt,
         updatedAt:$updatedAt
       })
@@ -124,7 +138,7 @@ export async function GET(req: Request) {
   const filters: string[] = [];
   if (q)
     filters.push(
-      `(toLower(i.institutionName) CONTAINS $q OR toLower(i.slug) CONTAINS $q)`
+      `(toLower(i.name) CONTAINS $q OR toLower(i.slug) CONTAINS $q)`
     );
   if (status) filters.push(`i.status = $status`);
   const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
@@ -132,15 +146,15 @@ export async function GET(req: Request) {
   const params = { q, status, limit: neo4j.int(limitSafe) };
 
   const cypher = `
-    MATCH (i:Institution)
+    MATCH (i:User {platformRole: "institution"})
     ${where}
     RETURN {
-        id: i.institutionId,
+        id: coalesce(i.userId, i.institutionId),
         value: i.slug,
-        label: i.institutionName,
-        status: coalesce(i.status, "approved")
+        label: coalesce(i.name, i.institutionName),
+        status: coalesce(i.status, "active")
     } AS option
-    ORDER BY i.institutionName ASC
+    ORDER BY i.name ASC
     LIMIT $limit
     `;
 
