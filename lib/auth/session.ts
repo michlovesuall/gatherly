@@ -35,12 +35,15 @@ export async function getSession(): Promise<Session | null> {
       }
       OPTIONAL MATCH (u)-[:MEMBER_OF]->(i:Institution)
       WITH u, i,
-        COALESCE(i.userId, i.institutionId, "") AS institutionId,
         CASE 
-          WHEN u.platformRole = "student" THEN "student"
-          WHEN u.platformRole = "employee" THEN "employee"
-          WHEN u.platformRole = "super_admin" THEN "super_admin"
-          WHEN u.platformRole = "institution" THEN "institution"
+          WHEN u.platformRole = "institution" THEN coalesce(u.userId, "")
+          ELSE COALESCE(i.userId, i.institutionId, "")
+        END AS institutionId,
+        CASE 
+          WHEN u.platformRole = "institution" OR toLower(coalesce(u.platformRole, "")) = "institution" THEN "institution"
+          WHEN u.platformRole = "student" OR toLower(coalesce(u.platformRole, "")) = "student" THEN "student"
+          WHEN u.platformRole = "employee" OR toLower(coalesce(u.platformRole, "")) = "employee" THEN "employee"
+          WHEN u.platformRole = "super_admin" OR toLower(coalesce(u.platformRole, "")) = "super_admin" THEN "super_admin"
           ELSE "staff"
         END AS role
       RETURN u.userId AS userId, role, institutionId, u.email AS email, u.name AS name

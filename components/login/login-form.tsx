@@ -56,7 +56,7 @@ export default function LoginForm() {
       } else if (role === "employee" || role === "staff") {
         router.push("/dashboard/employee");
       } else if (role === "super_admin") {
-        router.push("/dashboard");
+        router.push("/dashboard/admin");
       } else {
         router.push("/dashboard");
       }
@@ -71,7 +71,9 @@ export default function LoginForm() {
     <TabsContent value="login">
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)}>
-          {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+          {serverError && (
+            <p className="text-sm text-red-600 text-center">{serverError}</p>
+          )}
           <div className="flex flex-col gap-4">
             <div className="grid gap-2">
               <div className="flex items-center justify-between">

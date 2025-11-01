@@ -82,7 +82,7 @@ export function studentSidebar(u: SessionUser): SidebarConfig {
   return base;
 }
 
-export function employeeSidebar(u: SessionUser): SidebarConfig {
+export function employeeSidebar(): SidebarConfig {
   const base: SidebarConfig = [
     {
       title: "Employee",
@@ -297,31 +297,37 @@ export function institutionSidebar(): SidebarConfig {
 export function superAdminSidebar(): SidebarConfig {
   return [
     {
-      title: "Application",
+      title: "Dashboard",
       items: [
         {
           key: "dashboard",
           label: "Dashboard",
-          href: "/dashboard",
+          href: "/dashboard/admin",
           icon: LayoutDashboard,
         },
       ],
     },
     {
-      title: "Management",
+      title: "Tenants & Access",
       items: [
+        {
+          key: "users",
+          label: "All Users",
+          href: "/dashboard/admin/users",
+          icon: UsersRound,
+        },
         {
           key: "institutions",
           label: "Institutions",
           href: "/dashboard/admin/institutions",
           icon: Landmark,
         },
-        {
-          key: "users",
-          label: "Users",
-          href: "/dashboard/admin/users",
-          icon: UsersRound,
-        },
+        // {
+        //   key: "suspended-tenants",
+        //   label: "Suspended Tenants",
+        //   href: "/dashboard/admin/institutions/suspended",
+        //   icon: Shield,
+        // },
         {
           key: "clubs",
           label: "Clubs & Organizations",
@@ -334,25 +340,65 @@ export function superAdminSidebar(): SidebarConfig {
           href: "/dashboard/admin/events",
           icon: CalendarCheck2,
         },
-        {
-          key: "announcements",
-          label: "Announcements",
-          href: "/dashboard/admin/announcements",
-          icon: Megaphone,
-        },
       ],
     },
-    {
-      title: "Moderation",
-      items: [
-        {
-          key: "reports",
-          label: "Content & Reports",
-          href: "/dashboard/admin/moderation",
-          icon: MessageSquareWarning,
-        },
-      ],
-    },
+    // {
+    //   title: "Moderation & Compliance",
+    //   items: [
+    //     {
+    //       key: "reports",
+    //       label: "Content Moderation",
+    //       href: "/dashboard/admin/moderation",
+    //       icon: MessageSquareWarning,
+    //     },
+    //     {
+    //       key: "announcements",
+    //       label: "Global Announcements",
+    //       href: "/dashboard/admin/announcements",
+    //       icon: Megaphone,
+    //     },
+    //   ],
+    // },
+    // {
+    //   title: "Analytics & Logs",
+    //   items: [
+    //     {
+    //       key: "analytics",
+    //       label: "Cross-Tenant Analytics",
+    //       href: "/dashboard/admin/analytics",
+    //       icon: Activity,
+    //     },
+    //     {
+    //       key: "audit",
+    //       label: "Audit & Activity Logs",
+    //       href: "/dashboard/admin/audit",
+    //       icon: Activity,
+    //     },
+    //   ],
+    // },
+    // {
+    //   title: "Policies & Config",
+    //   items: [
+    //     {
+    //       key: "policies",
+    //       label: "Platform Policies",
+    //       href: "/dashboard/admin/policies",
+    //       icon: Shield,
+    //     },
+    //     {
+    //       key: "feature-flags",
+    //       label: "Feature Flags",
+    //       href: "/dashboard/admin/feature-flags",
+    //       icon: SettingsIcon,
+    //     },
+    //     {
+    //       key: "providers",
+    //       label: "Provider Keys",
+    //       href: "/dashboard/admin/providers",
+    //       icon: SettingsIcon,
+    //     },
+    //   ],
+    // },
     {
       title: "Settings",
       items: [
@@ -362,12 +408,12 @@ export function superAdminSidebar(): SidebarConfig {
           href: "/dashboard/admin/settings",
           icon: SettingsIcon,
         },
-        {
-          key: "audit",
-          label: "Audit & Activity Logs",
-          href: "/dashboard/admin/audit",
-          icon: Activity,
-        },
+        // {
+        //   key: "my-profile",
+        //   label: "My Profile",
+        //   href: "/dashboard/settings",
+        //   icon: Users,
+        // },
       ],
     },
   ];
@@ -376,6 +422,6 @@ export function superAdminSidebar(): SidebarConfig {
 export function getSidebarFor(u: SessionUser): SidebarConfig {
   if (u.platformRole === "institution") return institutionSidebar();
   if (u.platformRole === "super_admin") return superAdminSidebar();
-  if (u.platformRole === "employee") return employeeSidebar(u);
+  if (u.platformRole === "employee") return employeeSidebar();
   return studentSidebar(u);
 }

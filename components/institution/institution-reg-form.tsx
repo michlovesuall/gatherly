@@ -68,7 +68,7 @@ export default function InstitutionRegistrationForm({
 
       setPasswordError("");
       setDialogSuccess(true);
-      setDialogMessage("Institution registered successfully.");
+      setDialogMessage("Registration is successful, please wait to be approved by the Admin.");
       setDialogOpen(true);
       reset();
       onSuccessLogin?.();

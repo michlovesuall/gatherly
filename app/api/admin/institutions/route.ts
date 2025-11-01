@@ -2,8 +2,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
-import type { InstitutionOption } from "@/lib/types";
-import neo4j from "neo4j-driver";
+import { getSession } from "@/lib/auth/session";
 
 interface InstitutionRecord {
   userId: string;
@@ -52,13 +51,37 @@ function validate(body: InstitutionRequestBody) {
     errors.push("password is required");
   if (!body?.email || typeof body.email !== "string")
     errors.push("email is required");
+  if (!body?.idNumber || typeof body.idNumber !== "string")
+    errors.push("idNumber is required");
+  if (!body?.phone || typeof body.phone !== "string")
+    errors.push("phone is required");
   if (!body?.contactPersonEmail || typeof body.contactPersonEmail !== "string")
     errors.push("contactPersonEmail is required");
   if (errors.length) throw new Error(errors.join(", "));
 }
 
+/**
+ * POST /api/admin/institutions
+ * Create a new institution with approved status (super-admin only)
+ */
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    if (session.role !== "super_admin") {
+      return NextResponse.json(
+        { ok: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     validate(body);
 
@@ -78,7 +101,7 @@ export async function POST(req: Request) {
       webDomain: body.webDomain ?? null,
       contactPersonEmail: body.contactPersonEmail,
       slug,
-      status: "pending",
+      status: "approved", // Automatically approved when created by super-admin
       createdAt: now,
       updatedAt: now,
     };
@@ -126,41 +149,3 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const q = (url.searchParams.get("q") || "").trim().toLowerCase();
-  const status = url.searchParams.get("status");
-
-  const limitRaw = url.searchParams.get("limit");
-  const limitNum = Number.isFinite(Number(limitRaw)) ? Number(limitRaw) : 100;
-  const limitSafe = Math.min(Math.max(0, Math.trunc(limitNum)), 200);
-
-  const filters: string[] = [];
-  if (q)
-    filters.push(
-      `(toLower(i.name) CONTAINS $q OR toLower(i.slug) CONTAINS $q)`
-    );
-  if (status) filters.push(`i.status = $status`);
-  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-
-  const params = { q, status, limit: neo4j.int(limitSafe) };
-
-  const cypher = `
-    MATCH (i:User {platformRole: "institution"})
-    ${where}
-    RETURN {
-        id: coalesce(i.userId, i.institutionId),
-        value: i.slug,
-        label: coalesce(i.name, i.institutionName),
-        status: coalesce(i.status, "active")
-    } AS option
-    ORDER BY i.name ASC
-    LIMIT $limit
-    `;
-
-  const rows = await runQuery<{ option: InstitutionOption }>(cypher, params);
-  return NextResponse.json(
-    { ok: true, items: rows.map((r) => r.option) },
-    { status: 200 }
-  );
-}
