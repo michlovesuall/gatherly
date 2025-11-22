@@ -17,6 +17,7 @@ import {
   Megaphone,
   Activity,
   MessageSquareWarning,
+  Rss,
 } from "lucide-react";
 
 export function studentSidebar(u: SessionUser): SidebarConfig {
@@ -24,10 +25,10 @@ export function studentSidebar(u: SessionUser): SidebarConfig {
     {
       items: [
         {
-          key: "feed",
-          label: "Feed",
-          href: "/dashboard/student#feed",
-          icon: Newspaper,
+          key: "newsfeed",
+          label: "Newsfeed",
+          href: "/dashboard/student/newsfeed",
+          icon: Rss,
         },
         {
           key: "events",
@@ -82,14 +83,14 @@ export function studentSidebar(u: SessionUser): SidebarConfig {
   return base;
 }
 
-export function employeeSidebar(): SidebarConfig {
+export function employeeSidebar(u: SessionUser): SidebarConfig {
   const base: SidebarConfig = [
     {
       title: "Employee",
       items: [
         {
-          key: "feed",
-          label: "Feed",
+          key: "newsfeed",
+          label: "Newsfeed",
           href: "/dashboard/employee/feed",
           icon: Newspaper,
         },
@@ -99,58 +100,91 @@ export function employeeSidebar(): SidebarConfig {
           href: "/dashboard/employee/feed#events",
           icon: Calendar,
         },
+        {
+          key: "my-events",
+          label: "My Events",
+          href: "/dashboard/employee/my-events",
+          icon: CalendarCheck,
+        },
+        {
+          key: "clubs",
+          label: "Clubs",
+          href: "/dashboard/employee/clubs",
+          icon: Building2,
+        },
+        {
+          key: "certificates",
+          label: "Certificates",
+          href: "/dashboard/employee/certificates",
+          icon: Award,
+        },
       ],
     },
   ];
 
-  base.push({
-    title: "Advisor",
-    items: [
-      {
-        key: "approvals",
-        label: "Approvals",
-        href: "/dashboard/employee/approvals",
-        badgeCountKey: "approvals",
-        icon: ClipboardCheck,
-      },
-      {
-        key: "members",
-        label: "Manage Members",
-        href: "/dashboard/employee/advisor",
-        icon: Users,
-      },
-    ],
-  });
-  base.push({
-    title: "Staff",
-    items: [
-      {
-        key: "manage-events",
-        label: "Manage Events",
-        href: "/dashboard/employee/events",
-        icon: Calendar,
-      },
-      {
-        key: "manage-clubs",
-        label: "Manage Clubs",
-        href: "/dashboard/employee/clubs",
-        icon: Users,
-      },
-      {
-        key: "moderation",
-        label: "Moderation",
-        href: "/dashboard/employee/manage",
-        icon: Shield,
-      },
-      {
-        key: "staff-approvals",
-        label: "Approvals",
-        href: "/dashboard/employee/approvals",
-        badgeCountKey: "approvals",
-        icon: ClipboardCheck,
-      },
-    ],
-  });
+  // Add Advisor section if user is an advisor
+  if (u.employeeScope?.isAdvisor) {
+    // Note: Club names are dynamically loaded client-side
+    // The advisorClubIds are available in u.employeeScope.advisorClubIds
+    base.push({
+      title: "Advisor",
+      items: [
+        {
+          key: "approvals",
+          label: "Approvals",
+          href: "/dashboard/employee/approvals",
+          badgeCountKey: "approvals",
+          icon: ClipboardCheck,
+        },
+        {
+          key: "members",
+          label: "Manage Members",
+          href: "/dashboard/employee/advisor",
+          icon: Users,
+        },
+      ],
+    });
+  }
+
+  // Add Staff section if user is staff
+  if (u.employeeScope?.isStaff) {
+    base.push({
+      title: "Staff",
+      items: [
+        {
+          key: "manage-events",
+          label: "Manage Events",
+          href: "/dashboard/employee/events",
+          icon: Calendar,
+        },
+        {
+          key: "manage-clubs",
+          label: "Manage Clubs",
+          href: "/dashboard/employee/clubs",
+          icon: Users,
+        },
+        {
+          key: "moderation",
+          label: "Moderation",
+          href: "/dashboard/employee/manage",
+          icon: Shield,
+        },
+        {
+          key: "staff-approvals",
+          label: "Approvals",
+          href: "/dashboard/employee/approvals",
+          badgeCountKey: "approvals",
+          icon: ClipboardCheck,
+        },
+        {
+          key: "institution-settings",
+          label: "Institution Settings",
+          href: "/dashboard/employee/settings",
+          icon: SettingsIcon,
+        },
+      ],
+    });
+  }
 
   // Account settings removed from sidebar; accessible via user menu
   return base;
@@ -167,6 +201,12 @@ export function institutionSidebar(): SidebarConfig {
           href: "/dashboard",
           icon: LayoutDashboard,
         },
+        {
+          key: "newsfeed",
+          label: "Newsfeed",
+          href: "/dashboard/institution/newsfeed",
+          icon: Rss,
+        },
       ],
     },
     {
@@ -179,16 +219,9 @@ export function institutionSidebar(): SidebarConfig {
           icon: UsersRound,
         },
         {
-          key: "verification",
-          label: "Verifications",
-          href: "/dashboard/institution/users/verification",
-          icon: ClipboardCheck,
-          badgeCountKey: "approvals",
-        },
-        {
-          key: "advisors",
-          label: "Advisors",
-          href: "/dashboard/institution/advisors",
+          key: "staffs",
+          label: "Staffs",
+          href: "/dashboard/institution/staffs",
           icon: Users,
         },
       ],
@@ -304,6 +337,12 @@ export function superAdminSidebar(): SidebarConfig {
           label: "Dashboard",
           href: "/dashboard/admin",
           icon: LayoutDashboard,
+        },
+        {
+          key: "newsfeed",
+          label: "Newsfeed",
+          href: "/dashboard/admin/newsfeed",
+          icon: Rss,
         },
       ],
     },
@@ -422,6 +461,6 @@ export function superAdminSidebar(): SidebarConfig {
 export function getSidebarFor(u: SessionUser): SidebarConfig {
   if (u.platformRole === "institution") return institutionSidebar();
   if (u.platformRole === "super_admin") return superAdminSidebar();
-  if (u.platformRole === "employee") return employeeSidebar();
+  if (u.platformRole === "employee") return employeeSidebar(u);
   return studentSidebar(u);
 }

@@ -11,6 +11,8 @@ export interface AdminClubListItem {
   logo?: string;
   clubName: string;
   clubAcr?: string;
+  email?: string;
+  phone?: string;
   about?: string;
   status: string;
   institutionId: string;
@@ -94,6 +96,8 @@ export async function getAdminClubList(
     logo?: string;
     clubName: string;
     clubAcr?: string;
+    email?: string;
+    phone?: string;
     about?: string;
     status: string;
     institutionId: string;
@@ -112,6 +116,8 @@ export async function getAdminClubList(
       c.logo AS logo,
       coalesce(c.name, c.clubName, "") AS clubName,
       coalesce(c.acronym, c.clubAcr) AS clubAcr,
+      c.email AS email,
+      c.phone AS phone,
       c.about AS about,
       coalesce(c.status, "pending") AS status,
       coalesce(i.userId, i.institutionId, "") AS institutionId,

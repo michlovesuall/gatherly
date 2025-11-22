@@ -10,6 +10,8 @@ interface ClubFormData {
   logo?: File;
   clubName: string;
   clubAcr: string;
+  email: string;
+  phone: string;
   about?: string;
   institutionId: string;
 }
@@ -35,6 +37,12 @@ function validate(data: ClubFormData) {
   }
   if (!data.clubAcr?.trim()) {
     errors.push("Club acronym is required");
+  }
+  if (!data.email?.trim()) {
+    errors.push("Email is required");
+  }
+  if (!data.phone?.trim()) {
+    errors.push("Phone is required");
   }
   if (!data.institutionId?.trim()) {
     errors.push("Institution is required");
@@ -94,6 +102,8 @@ export async function POST(req: Request) {
     const logoFile = formData.get("logo") as File | null;
     const clubName = formData.get("clubName")?.toString() || "";
     const clubAcr = formData.get("clubAcr")?.toString() || "";
+    const email = formData.get("email")?.toString() || "";
+    const phone = formData.get("phone")?.toString() || "";
     const about = formData.get("about")?.toString();
     const institutionId = formData.get("institutionId")?.toString() || "";
 
@@ -101,6 +111,8 @@ export async function POST(req: Request) {
       logo: logoFile || undefined,
       clubName,
       clubAcr,
+      email,
+      phone,
       about,
       institutionId,
     };
@@ -149,6 +161,8 @@ export async function POST(req: Request) {
       logo: logoUrl,
       clubName: data.clubName.trim(),
       clubAcr: data.clubAcr.trim(),
+      email: data.email.trim(),
+      phone: data.phone.trim(),
       about: data.about?.trim() || null,
       slug,
       status: "pending",
@@ -168,6 +182,8 @@ export async function POST(req: Request) {
         clubName: $clubName,
         acronym: $clubAcr,
         clubAcr: $clubAcr,
+        email: $email,
+        phone: $phone,
         about: $about,
         slug: $slug,
         status: $status,

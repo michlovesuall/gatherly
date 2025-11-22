@@ -39,6 +39,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Eye,
 } from "lucide-react";
 import type {
   AdminClubStats,
@@ -49,6 +50,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 interface ClubFormData {
   clubName: string;
   clubAcr: string;
+  email: string;
+  phone: string;
   about: string;
   institutionId: string;
 }
@@ -77,6 +80,8 @@ export function AdminClubsPage({
     useState(initialInstitution);
   const [isPending, startTransition] = useTransition();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewClub, setViewClub] = useState<AdminClubListItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -204,6 +209,8 @@ export function AdminClubsPage({
       formData.append("logo", logoFile);
       formData.append("clubName", data.clubName);
       formData.append("clubAcr", data.clubAcr);
+      formData.append("email", data.email);
+      formData.append("phone", data.phone);
       if (data.about) {
         formData.append("about", data.about);
       }
@@ -245,6 +252,22 @@ export function AdminClubsPage({
       default:
         return "secondary";
     }
+  };
+
+  // Handle view club
+  const handleViewClub = (club: AdminClubListItem) => {
+    setViewClub(club);
+    setIsViewModalOpen(true);
+  };
+
+  // Helper function to get initials
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -416,6 +439,13 @@ export function AdminClubsPage({
                         <div className="flex gap-2 justify-end">
                           <Button
                             size="sm"
+                            variant="outline"
+                            onClick={() => handleViewClub(club)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="default"
                             onClick={() => handleAction(club.clubId, "approve")}
                             disabled={
@@ -575,6 +605,51 @@ export function AdminClubsPage({
                     </p>
                   )}
                 </div>
+
+                {/* Email */}
+                <div className="grid gap-2">
+                  <Label htmlFor="email">
+                    Email <span className="text-red-600">*</span>
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="club@example.com"
+                    {...register("email", {
+                      required: "Email is required",
+                      pattern: {
+                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                        message: "Invalid email address",
+                      },
+                    })}
+                  />
+                  {errors.email && (
+                    <p className="text-xs text-red-600">
+                      {errors.email.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Phone */}
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">
+                    Phone <span className="text-red-600">*</span>
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="09xx-xxx-xxxx"
+                    {...register("phone", {
+                      required: "Phone is required",
+                    })}
+                  />
+                  {errors.phone && (
+                    <p className="text-xs text-red-600">
+                      {errors.phone.message}
+                    </p>
+                  )}
+                </div>
+
                 {/* About */}
                 <div className="grid gap-2 col-span-full">
                   <Label htmlFor="about">About (Optional)</Label>
@@ -613,6 +688,99 @@ export function AdminClubsPage({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Club Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Club Details</DialogTitle>
+            <DialogDescription>
+              View club information and status
+            </DialogDescription>
+          </DialogHeader>
+          {viewClub && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={viewClub.logo} alt={viewClub.clubName} />
+                  <AvatarFallback>
+                    {viewClub.clubAcr
+                      ? viewClub.clubAcr.toUpperCase().slice(0, 2)
+                      : getInitials(viewClub.clubName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {viewClub.clubName}
+                  </h3>
+                  {viewClub.clubAcr && (
+                    <p className="text-sm text-muted-foreground">
+                      {viewClub.clubAcr}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Institution</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewClub.institutionName}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <p className="text-sm text-muted-foreground">
+                    <Badge variant={getStatusBadgeVariant(viewClub.status)}>
+                      {viewClub.status}
+                    </Badge>
+                  </p>
+                </div>
+                {viewClub.email && (
+                  <div>
+                    <Label className="text-sm font-medium">Email</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {viewClub.email}
+                    </p>
+                  </div>
+                )}
+                {viewClub.phone && (
+                  <div>
+                    <Label className="text-sm font-medium">Phone</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {viewClub.phone}
+                    </p>
+                  </div>
+                )}
+                {viewClub.about && (
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium">About</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {viewClub.about}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-sm font-medium">Created At</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(viewClub.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Updated At</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(viewClub.updatedAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

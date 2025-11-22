@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { NavUser } from "@/components/app-user";
 import { SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { AppSidebar as LegacyAppSidebar } from "@/components/app-sidebar";
+import EmployeeSideBar from "@/components/employee/sidebar";
 
 // use shared getCurrentUser to include employee scope and clubs immediately after login
 
@@ -77,6 +78,37 @@ export default async function RoleSidebar({
     // fallback to legacy client sidebar which fetches session client-side
     return <LegacyAppSidebar />;
   }
+
+  // For employees, use the client-side component to support dynamic club loading
+  if (user.platformRole === "employee") {
+    return (
+      <Sidebar>
+        <SidebarHeader className="mt-4">
+          <SidebarMenu className="flex items-center">
+            <SidebarMenuItem className="text-2xl font-bold">
+              Gatherly
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          <ScrollArea className="h-[calc(100svh-8rem)]">
+            <EmployeeSideBar />
+          </ScrollArea>
+        </SidebarContent>
+        <SidebarFooter>
+          <NavUser
+            user={{
+              name: user.name,
+              email: "",
+              avatar: user.avatarUrl,
+              role: user.platformRole,
+            }}
+          />
+        </SidebarFooter>
+      </Sidebar>
+    );
+  }
+
   const config = getSidebarFor(user);
   const pathname = ""; // server can't access usePathname; highlight handled client-side via Link styles
   return (

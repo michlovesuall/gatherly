@@ -7,13 +7,9 @@ export default async function EmployeeLandingPage() {
     redirect("/login");
   }
   if (session.role !== "employee" && session.role !== "staff") {
-    redirect(`/dashboard/${session.role}`);
+    redirect(`/dashboard/${session.role}/newsfeed`);
   }
 
-  const isStaff = session.role === "staff";
-  if (isStaff) {
-    redirect("/dashboard/employee/manage");
-  } else {
-    redirect("/dashboard/employee/feed");
-  }
+  // Redirect to newsfeed
+  redirect("/dashboard/employee/newsfeed");
 }

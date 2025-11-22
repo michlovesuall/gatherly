@@ -12,6 +12,9 @@ interface EmployeeRequest {
   avatarUrl?: string | null;
   institutionId?: string | null;
   institutionSlug?: string | null;
+  collegeId?: string | null;
+  departmentId?: string | null;
+  programId?: string | null;
 }
 
 export async function POST(req: Request) {
@@ -73,6 +76,43 @@ export async function POST(req: Request) {
         createdAt: $createdAt,
         updatedAt: $updatedAt
       }]->(i)
+      WITH u, i, m
+      ${
+        body.collegeId
+          ? `
+      MATCH (c:College {collegeId: $collegeId})
+      CREATE (u)-[:ENROLLED_IN_COLLEGE {
+        createdAt: $createdAt,
+        updatedAt: $updatedAt
+      }]->(c)
+      WITH u, i, m
+      `
+          : ""
+      }
+      ${
+        body.departmentId
+          ? `
+      MATCH (d:Department {departmentId: $departmentId})
+      CREATE (u)-[:ENROLLED_IN_DEPARTMENT {
+        createdAt: $createdAt,
+        updatedAt: $updatedAt
+      }]->(d)
+      WITH u, i, m
+      `
+          : ""
+      }
+      ${
+        body.programId
+          ? `
+      MATCH (p:Program {programId: $programId})
+      CREATE (u)-[:ENROLLED_IN_PROGRAM {
+        createdAt: $createdAt,
+        updatedAt: $updatedAt
+      }]->(p)
+      WITH u, i, m
+      `
+          : ""
+      }
       RETURN u { .* } AS user, i { .* } AS institution, m;
     `;
 
@@ -92,6 +132,9 @@ export async function POST(req: Request) {
       memberStatus: "approved",
       institutionId: body.institutionId,
       institutionSlug: body.institutionSlug,
+      collegeId: body.collegeId ?? null,
+      departmentId: body.departmentId ?? null,
+      programId: body.programId ?? null,
     };
 
     const [row] = await runQuery<{

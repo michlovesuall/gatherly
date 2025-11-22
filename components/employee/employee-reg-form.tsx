@@ -20,7 +20,7 @@ import {
 
 // Utility Imports
 import { useForm } from "react-hook-form";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -30,6 +30,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { InstitutionOption, EmployeeRegistrationData } from "@/lib/types";
 
 interface EmployeeFormProps {
@@ -51,6 +58,7 @@ export default function EmployeeRegistrationForm({
   setInstitutionValue,
   open,
   setOpen,
+  onSuccessLogin,
 }: EmployeeFormProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,9 +77,144 @@ export default function EmployeeRegistrationForm({
     [institutions, institutionValue]
   );
 
+  // New state for college, department, and program
+  const [collegeId, setCollegeId] = useState<string>("");
+  const [departmentId, setDepartmentId] = useState<string>("");
+  const [programId, setProgramId] = useState<string>("");
+  const [colleges, setColleges] = useState<
+    Array<{ collegeId: string; name: string; acronym: string }>
+  >([]);
+  const [departments, setDepartments] = useState<
+    Array<{
+      departmentId: string;
+      name: string;
+      acronym: string;
+      collegeId: string;
+      collegeName: string;
+    }>
+  >([]);
+  const [programs, setPrograms] = useState<
+    Array<{
+      programId: string;
+      name: string;
+      acronym: string;
+      departmentId: string;
+      departmentName: string;
+      collegeId: string;
+      collegeName: string;
+    }>
+  >([]);
+  const [loadingColleges, setLoadingColleges] = useState(false);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
+
+  const selectedInstitution = useMemo(
+    () => institutions.find((i) => i.value === institutionValue),
+    [institutions, institutionValue]
+  );
+
+  // Fetch colleges when institution is selected
+  useEffect(() => {
+    if (selectedInstitution?.id) {
+      setLoadingColleges(true);
+      fetch(`/api/public/institution/${selectedInstitution.id}/colleges`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok) {
+            setColleges(data.colleges || []);
+          }
+        })
+        .catch((err) => console.error("Failed to fetch colleges:", err))
+        .finally(() => setLoadingColleges(false));
+    } else {
+      setColleges([]);
+      setCollegeId("");
+    }
+  }, [selectedInstitution?.id]);
+
+  // Fetch departments when institution is selected
+  useEffect(() => {
+    if (selectedInstitution?.id) {
+      setLoadingDepartments(true);
+      fetch(`/api/public/institution/${selectedInstitution.id}/departments`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok) {
+            setDepartments(data.departments || []);
+          }
+        })
+        .catch((err) => console.error("Failed to fetch departments:", err))
+        .finally(() => setLoadingDepartments(false));
+    } else {
+      setDepartments([]);
+      setDepartmentId("");
+    }
+  }, [selectedInstitution?.id]);
+
+  // Fetch programs when institution is selected
+  useEffect(() => {
+    if (selectedInstitution?.id) {
+      setLoadingPrograms(true);
+      fetch(`/api/public/institution/${selectedInstitution.id}/programs`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok) {
+            setPrograms(data.programs || []);
+          }
+        })
+        .catch((err) => console.error("Failed to fetch programs:", err))
+        .finally(() => setLoadingPrograms(false));
+    } else {
+      setPrograms([]);
+      setProgramId("");
+    }
+  }, [selectedInstitution?.id]);
+
+  // Reset dependent fields when institution changes
+  useEffect(() => {
+    setCollegeId("");
+    setDepartmentId("");
+    setProgramId("");
+  }, [institutionValue]);
+
+  // Reset department and program when college changes
+  useEffect(() => {
+    setDepartmentId("");
+    setProgramId("");
+  }, [collegeId]);
+
+  // Reset program when department changes
+  useEffect(() => {
+    setProgramId("");
+  }, [departmentId]);
+
+  // Filter departments by selected college
+  const filteredDepartments = useMemo(() => {
+    if (!collegeId) return [];
+    return departments.filter((dept) => dept.collegeId === collegeId);
+  }, [departments, collegeId]);
+
+  // Filter programs by selected department
+  const filteredPrograms = useMemo(() => {
+    if (!departmentId) return [];
+    return programs.filter((prog) => prog.departmentId === departmentId);
+  }, [programs, departmentId]);
+
   const onSubmit = async (data: EmployeeRegistrationData) => {
     if (!institutionValue) {
       alert("Please select your institution.");
+      return;
+    }
+    if (!collegeId) {
+      alert("Please select your college.");
+      return;
+    }
+    if (!departmentId) {
+      alert("Please select your department.");
+      return;
+    }
+    if (!programId) {
+      alert("Please select your program.");
       return;
     }
     if (data.userPassword !== data.userConfirmPassword) {
@@ -90,6 +233,9 @@ export default function EmployeeRegistrationForm({
       avatarUrl: null,
       institutionId: selected?.id,
       institutionSlug: selected?.value,
+      collegeId,
+      departmentId,
+      programId,
     };
 
     try {
@@ -129,6 +275,9 @@ export default function EmployeeRegistrationForm({
       setDialogOpen(true);
       reset();
       setInstitutionValue("");
+      setCollegeId("");
+      setDepartmentId("");
+      setProgramId("");
       try {
         onSuccessLogin?.();
       } catch (e) {
@@ -278,6 +427,175 @@ export default function EmployeeRegistrationForm({
             {institutionError && (
               <p className="text-sm text-red-600">Error: {institutionError}</p>
             )}
+          </div>
+          <div className="grid md:col-span-2 gap-2">
+            <Label htmlFor="collegeSelect">
+              College <span className="text-red-600 m-0 p-0">*</span>
+            </Label>
+            <Select
+              value={collegeId}
+              onValueChange={setCollegeId}
+              disabled={
+                !institutionValue || loadingColleges || colleges.length === 0
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    loadingColleges
+                      ? "Loading colleges..."
+                      : !institutionValue
+                      ? "Select institution first"
+                      : colleges.length === 0
+                      ? "No colleges available"
+                      : "Select College..."
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {colleges.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    No colleges available
+                  </div>
+                ) : (
+                  colleges.map((college) => (
+                    <SelectItem
+                      key={college.collegeId}
+                      value={college.collegeId}
+                    >
+                      {college.name} ({college.acronym})
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {!institutionValue && (
+              <p className="text-xs text-muted-foreground">
+                Please select an institution first
+              </p>
+            )}
+            {institutionValue && !loadingColleges && colleges.length === 0 && (
+              <p className="text-xs text-amber-600">
+                No colleges are available for this institution. Please contact
+                your institution administrator.
+              </p>
+            )}
+          </div>
+          <div className="grid md:col-span-2 gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="departmentSelect">
+                Department <span className="text-red-600 m-0 p-0">*</span>
+              </Label>
+              <Select
+                value={departmentId}
+                onValueChange={setDepartmentId}
+                disabled={
+                  !collegeId ||
+                  loadingDepartments ||
+                  filteredDepartments.length === 0
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={
+                      loadingDepartments
+                        ? "Loading departments..."
+                        : !collegeId
+                        ? "Select college first"
+                        : filteredDepartments.length === 0
+                        ? "No departments available"
+                        : "Select Department..."
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredDepartments.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No departments available
+                    </div>
+                  ) : (
+                    filteredDepartments.map((dept) => (
+                      <SelectItem
+                        key={dept.departmentId}
+                        value={dept.departmentId}
+                      >
+                        {dept.name} ({dept.acronym})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {!collegeId && (
+                <p className="text-xs text-muted-foreground">
+                  Please select a college first
+                </p>
+              )}
+              {collegeId &&
+                !loadingDepartments &&
+                filteredDepartments.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    No departments are available for this college. Please
+                    contact your institution administrator.
+                  </p>
+                )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="programSelect">
+                Program <span className="text-red-600 m-0 p-0">*</span>
+              </Label>
+              <Select
+                value={programId}
+                onValueChange={setProgramId}
+                disabled={
+                  !departmentId ||
+                  loadingPrograms ||
+                  filteredPrograms.length === 0
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={
+                      loadingPrograms
+                        ? "Loading programs..."
+                        : !departmentId
+                        ? "Select department first"
+                        : filteredPrograms.length === 0
+                        ? "No programs available"
+                        : "Select Program..."
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredPrograms.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No programs available
+                    </div>
+                  ) : (
+                    filteredPrograms.map((program) => (
+                      <SelectItem
+                        key={program.programId}
+                        value={program.programId}
+                      >
+                        {program.name} ({program.acronym})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {!departmentId && (
+                <p className="text-xs text-muted-foreground">
+                  Please select a department first
+                </p>
+              )}
+              {departmentId &&
+                !loadingPrograms &&
+                filteredPrograms.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    No programs are available for this department. Please
+                    contact your institution administrator.
+                  </p>
+                )}
+            </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="userPassword">Password</Label>

@@ -23,18 +23,28 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     clubId?: string;
     clubName?: string;
     clubRole?: string;
+    isStaff?: boolean;
+    advisorClubIds?: string[];
   }>(
     `
     MATCH (s:Session {token: $token})<-[:HAS_SESSION]-(u)
     OPTIONAL MATCH (u)-[:MEMBER_OF]->(i:Institution)
     OPTIONAL MATCH (u)-[mc:MEMBER_OF_CLUB]->(c:Club)
-    WITH u, i, collect({clubId: c.clubId, clubName: c.name, role: coalesce(mc.role, "member")}) AS clubs
+    OPTIONAL MATCH (u)-[:ADVISES]->(advisedClub:Club)
+    WITH u, i, 
+         collect(DISTINCT {clubId: c.clubId, clubName: c.name, role: coalesce(mc.role, "member")}) AS clubs,
+         collect(DISTINCT advisedClub.clubId) AS advisorClubIds
+    OPTIONAL MATCH (u)-[staffRel:IS_STAFF_OF]->(i)
+    WITH u, i, clubs, advisorClubIds,
+         CASE WHEN staffRel IS NOT NULL THEN true ELSE false END AS isStaff
     RETURN u.userId AS userId,
            u.name AS name,
            u.avatarUrl AS avatarUrl,
            coalesce(toLower(u.platformRole), "student") AS platformRole,
            coalesce(i.institutionId, "") AS institutionId,
            coalesce(i.status, "approved") AS institutionStatus,
+           isStaff,
+           advisorClubIds,
            clubs
     LIMIT 1
     `,
@@ -104,9 +114,17 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
         }))
     : [];
 
+  // Calculate employeeScope for employees
   const employeeScope: EmployeeScope | undefined =
     row.platformRole === "employee"
-      ? { isStaff: false, isAdvisor: false, advisorClubIds: [] }
+      ? {
+          isStaff: row.isStaff === true,
+          isAdvisor:
+            Array.isArray(row.advisorClubIds) && row.advisorClubIds.length > 0,
+          advisorClubIds: Array.isArray(row.advisorClubIds)
+            ? row.advisorClubIds.filter((id: any) => id)
+            : [],
+        }
       : undefined;
 
   const institution: InstitutionMembership = {
