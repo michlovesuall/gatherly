@@ -14,8 +14,8 @@ import { StatsCard } from "./stats-card";
 export interface NewsfeedPageProps {
   context: NewsfeedContext;
   feedItems: NewsfeedItem[];
-  myEvents: { going: EventItem[]; interested: EventItem[] };
-  stats: { going: number; interested: number; certificates: number };
+  myEvents?: { going: EventItem[]; interested: EventItem[] };
+  stats?: { going: number; interested: number; certificates: number };
   role: "student" | "employee" | "institution" | "super_admin";
 }
 
@@ -63,9 +63,9 @@ export function NewsfeedPage({
       {/* Main Content - Two Columns */}
       <div className="flex-1 overflow-hidden">
         <div className="container mx-auto h-full px-4 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-            {/* First Column - Feed (2/3 width, scrollable) */}
-            <div className="lg:col-span-2 h-full overflow-y-auto">
+          <div className={`grid grid-cols-1 gap-6 h-full ${role === "student" || role === "employee" ? "lg:grid-cols-3" : "lg:grid-cols-1"}`}>
+            {/* First Column - Feed (2/3 width for Student/Employee, full width for Institution/Super-Admin, scrollable) */}
+            <div className={`h-full overflow-y-auto ${role === "student" || role === "employee" ? "lg:col-span-2" : "lg:col-span-1"}`}>
               <NewsfeedFeed
                 items={feedItems}
                 filter={feedFilter}
@@ -75,15 +75,18 @@ export function NewsfeedPage({
             </div>
 
             {/* Second Column - Stats and My Events Card (1/3 width, sticky) */}
-            <div className="lg:col-span-1 h-full">
-              <div className="sticky top-6 space-y-4">
-                <StatsCard stats={stats} />
-                <MyEventsCard
-                  going={myEvents.going}
-                  interested={myEvents.interested}
-                />
+            {/* Only show for Student and Employee roles */}
+            {(role === "student" || role === "employee") && stats && myEvents && (
+              <div className="lg:col-span-1 h-full">
+                <div className="sticky top-6 space-y-4">
+                  <StatsCard stats={stats} />
+                  <MyEventsCard
+                    going={myEvents.going}
+                    interested={myEvents.interested}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

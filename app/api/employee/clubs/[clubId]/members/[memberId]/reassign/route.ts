@@ -51,10 +51,11 @@ export async function PATCH(
     }
 
     // Verify member belongs to club
-    const memberCheck = await runQuery<{ exists: boolean }>(
+    const memberCheck = await runQuery<{ exists: boolean; currentRole: string }>(
       `
       MATCH (m:User {userId: $memberId})-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
-      RETURN COUNT(mc) > 0 AS exists
+      RETURN COUNT(mc) > 0 AS exists, mc.role AS currentRole
+      LIMIT 1
       `,
       { memberId, clubId }
     );
@@ -66,7 +67,32 @@ export async function PATCH(
       );
     }
 
+    // If assigning as president (officer), check if there's already a president
+    if (role === "officer") {
+      const existingPresident = await runQuery<{ userId: string; name: string }>(
+        `
+        MATCH (m:User)-[mc:MEMBER_OF_CLUB {role: "officer"}]->(c:Club {clubId: $clubId})
+        WHERE m.userId <> $memberId
+        RETURN m.userId AS userId, m.name AS name
+        LIMIT 1
+        `,
+        { memberId, clubId }
+      );
+
+      if (existingPresident.length > 0) {
+        // Remove the old president's role first
+        await runQuery(
+          `
+          MATCH (m:User {userId: $oldPresidentId})-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
+          SET mc.role = "member"
+          `,
+          { oldPresidentId: existingPresident[0].userId, clubId }
+        );
+      }
+    }
+
     // Update member role
+    const now = new Date().toISOString();
     const result = await runQuery<{
       userId: string;
       name: string;
@@ -74,10 +100,10 @@ export async function PATCH(
     }>(
       `
       MATCH (m:User {userId: $memberId})-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
-      SET mc.role = $role
+      SET mc.role = $role, mc.updatedAt = $updatedAt
       RETURN m.userId AS userId, m.name AS name, mc.role AS role
       `,
-      { memberId, clubId, role }
+      { memberId, clubId, role, updatedAt: now }
     );
 
     if (!result.length) {

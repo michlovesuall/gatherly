@@ -41,19 +41,15 @@ export function NewsfeedHeader({
 
   // Build department/program text based on role
   const departmentProgramText =
-    role === "employee"
+    role === "employee" || role === "student"
       ? context.departmentAcronym || context.departmentName || ""
-      : role === "student"
-      ? [context.departmentName, context.programName]
-          .filter(Boolean)
-          .join(" • ")
       : ""; // institution and super_admin don't have department/program
 
   return (
-    <div className="sticky top-0 z-50 bg-background border-b">
-      <Card className="rounded-none border-x-0 border-t-0">
-        <CardContent>
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-3">
+    <div className="sticky top-0 z-50 w-full bg-background border-b">
+      <Card className="rounded-none border-x-0 border-t-0 w-full">
+        <CardContent className="px-0">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-3 px-4 lg:px-6">
             {/* Left Side */}
             <div className="flex items-center gap-2 lg:gap-3 flex-1">
               <SidebarTrigger className="cursor-pointer" />

@@ -282,6 +282,65 @@ export async function getMyClubs(userId: string): Promise<Club[]> {
 }
 
 /**
+ * Get club details for student (where student is a member)
+ */
+export async function getStudentClubDetails(
+  userId: string,
+  clubId: string
+): Promise<{
+  clubId: string;
+  clubName: string;
+  acronym?: string;
+  logo?: string;
+  email?: string;
+  phone?: string;
+  advisorName: string;
+  advisorId: string;
+  memberCount: number;
+  isOfficer: boolean;
+  isPresident: boolean;
+} | null> {
+  const result = await runQuery<{
+    clubId: string;
+    clubName: string;
+    acronym?: string;
+    logo?: string;
+    email?: string;
+    phone?: string;
+    advisorName: string;
+    advisorId: string;
+    memberCount: number;
+    isOfficer: boolean;
+    isPresident: boolean;
+  }>(
+    `
+    MATCH (u:User {userId: $userId})-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId, status: "approved"})
+    OPTIONAL MATCH (c)<-[:ADVISES]-(a:User)
+    OPTIONAL MATCH (m:User)-[:MEMBER_OF_CLUB]->(c)
+    WITH c, a, mc, COUNT(DISTINCT m) AS memberCount
+    RETURN 
+      c.clubId AS clubId,
+      coalesce(c.name, c.clubName, "") AS clubName,
+      coalesce(c.acronym, c.clubAcr) AS acronym,
+      c.logo AS logo,
+      c.email AS email,
+      c.phone AS phone,
+      coalesce(a.name, "") AS advisorName,
+      coalesce(a.userId, "") AS advisorId,
+      memberCount,
+      CASE WHEN mc.role = "officer" THEN true ELSE false END AS isOfficer,
+      CASE WHEN mc.role = "officer" THEN true ELSE false END AS isPresident
+    LIMIT 1
+    `,
+    { userId, clubId }
+  );
+
+  if (!result.length) return null;
+
+  return result[0];
+}
+
+/**
  * Get announcements from joined clubs (latest 5)
  */
 export async function getClubAnnouncements(
@@ -514,15 +573,19 @@ export async function getNewsfeedItems(
   filter: "for-you" | "global" = "for-you",
   limit = 50
 ): Promise<NewsfeedItem[]> {
-  // Get events
+  // Get events (both institution and club events)
   const eventsQuery = filter === "for-you"
     ? `
-    MATCH (e:Event)-[:BELONGS_TO]->(i)
-    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
-      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      AND e.visibility IN ["public", "institution"]
-      AND e.status IN ["approved", "published"]
+    MATCH (e:Event)
+    WHERE e.status IN ["approved", "published"]
       AND e.startAt >= datetime() - duration({days: 30})
+      AND e.visibility IN ["public", "institution"]
+    OPTIONAL MATCH (e)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c:Club)-[:HOSTS]->(e)
+    OPTIONAL MATCH (c)-[:BELONGS_TO]->(ci)
+    WITH e, i, c, ci
+    WHERE (i IS NOT NULL AND (i.userId = $institutionId OR i.institutionId = $institutionId))
+       OR (ci IS NOT NULL AND (ci.userId = $institutionId OR ci.institutionId = $institutionId))
     OPTIONAL MATCH (u:User {userId: $userId})-[:RSVP]->(r:RSVP)-[:FOR]->(e)
     WITH e, u, r,
       CASE 
@@ -597,7 +660,7 @@ export async function getNewsfeedItems(
   const announcementsQuery = filter === "for-you"
     ? `
     MATCH (a:Announcement)
-    WHERE a.status = "published"
+    WHERE a.status IN ["approved", "published"]
       AND a.createdAt >= datetime() - duration({days: 30})
     OPTIONAL MATCH (a)-[:BELONGS_TO]->(i)
     OPTIONAL MATCH (a)-[:BELONGS_TO_CLUB]->(c:Club)
@@ -622,7 +685,7 @@ export async function getNewsfeedItems(
     `
     : `
     MATCH (a:Announcement)
-    WHERE a.status = "published"
+    WHERE a.status IN ["approved", "published"]
       AND a.createdAt >= datetime() - duration({days: 30})
     OPTIONAL MATCH (a)-[:BELONGS_TO]->(i)
     OPTIONAL MATCH (a)-[:BELONGS_TO_CLUB]->(c:Club)

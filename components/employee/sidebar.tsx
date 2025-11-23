@@ -141,7 +141,7 @@ export default function EmployeeSideBar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/employee/feed">
+                <Link href="/dashboard/employee/newsfeed">
                   <Newspaper />
                   <span>Newsfeed</span>
                 </Link>
@@ -149,7 +149,7 @@ export default function EmployeeSideBar() {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
-                <Link href="/dashboard/employee/feed#events">
+                <Link href="/dashboard/employee/newsfeed#events">
                   <Calendar />
                   <span>Events</span>
                 </Link>
@@ -223,22 +223,6 @@ export default function EmployeeSideBar() {
                   </SidebarMenuItem>
                 ))
               )}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/employee/approvals">
-                    <ClipboardCheck />
-                    <span>Approvals</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/dashboard/employee/advisor">
-                    <Users />
-                    <span>Manage Members</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-export default function NewsfeedLayout({
+export default function EmployeeClubLayout({
   children,
 }: {
   children: ReactNode;

@@ -6,8 +6,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 export function SidebarTriggerWrapper() {
   const pathname = usePathname();
   const isNewsfeed = pathname?.includes("/newsfeed");
+  const isClubDetail = pathname?.match(/\/(student|employee)\/clubs\/[^/]+$/);
 
-  if (isNewsfeed) {
+  if (isNewsfeed || isClubDetail) {
     return null;
   }
 

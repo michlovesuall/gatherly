@@ -32,7 +32,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     OPTIONAL MATCH (u)-[mc:MEMBER_OF_CLUB]->(c:Club)
     OPTIONAL MATCH (u)-[:ADVISES]->(advisedClub:Club)
     WITH u, i, 
-         collect(DISTINCT {clubId: c.clubId, clubName: c.name, role: coalesce(mc.role, "member")}) AS clubs,
+         collect(DISTINCT {clubId: c.clubId, clubName: c.name, clubAcronym: coalesce(c.acronym, c.clubAcr), role: coalesce(mc.role, "member")}) AS clubs,
          collect(DISTINCT advisedClub.clubId) AS advisorClubIds
     OPTIONAL MATCH (u)-[staffRel:IS_STAFF_OF]->(i)
     WITH u, i, clubs, advisorClubIds,
@@ -108,6 +108,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
         .map((c: any) => ({
           clubId: c.clubId,
           clubName: c.clubName,
+          clubAcronym: c.clubAcronym || undefined,
           role: (c.role === "officer"
             ? "officer"
             : "member") as ClubMembership["role"],

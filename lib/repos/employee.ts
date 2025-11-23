@@ -25,11 +25,18 @@ export interface ClubPost {
   authorId: string;
   authorName: string;
   authorType: "advisor" | "member";
-  status: "published" | "pending" | "draft";
+  status: "published" | "pending" | "draft" | "approved" | "hidden";
+  visibility?: "institution" | "public" | "restricted";
+  imageUrl?: string;
   // Event-specific
   startAt?: string;
   endAt?: string;
   venue?: string;
+  link?: string;
+  maxSlots?: number | string;
+  tags?: string[];
+  // Announcement-specific
+  date?: string;
 }
 
 export interface ClubDetails {
@@ -187,12 +194,19 @@ export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
     startAt?: string;
     endAt?: string;
     venue?: string;
+    visibility?: string;
+    imageUrl?: string;
+    link?: string;
+    maxSlots?: number;
+    tags?: string[];
   }>(
     `
     MATCH (c:Club {clubId: $clubId})-[:HOSTS]->(e:Event)
     OPTIONAL MATCH (e)<-[:CREATED]-(creator:User)
     OPTIONAL MATCH (advisor:User)-[:ADVISES]->(c)
-    WITH e, creator, advisor,
+    OPTIONAL MATCH (e)-[:HAS_TAG]->(tag:Tag)
+    WITH e, creator, advisor, collect(DISTINCT tag.name) AS tagList
+    WITH e, creator, advisor, tagList,
       CASE 
         WHEN advisor.userId = creator.userId THEN "advisor"
         ELSE "member"
@@ -208,7 +222,12 @@ export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
       coalesce(e.status, "draft") AS status,
       e.startAt AS startAt,
       e.endAt AS endAt,
-      e.venue AS venue
+      e.venue AS venue,
+      coalesce(e.visibility, "institution") AS visibility,
+      e.imageUrl AS imageUrl,
+      e.link AS link,
+      e.maxSlots AS maxSlots,
+      tagList AS tags
     ORDER BY e.createdAt DESC
     `,
     { clubId }
@@ -224,6 +243,9 @@ export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
     authorName: string;
     authorType: string;
     status: string;
+    visibility?: string;
+    imageUrl?: string;
+    date?: string;
   }>(
     `
     MATCH (a:Announcement)-[:BELONGS_TO_CLUB]->(c:Club {clubId: $clubId})
@@ -242,7 +264,10 @@ export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
       coalesce(creator.userId, "") AS authorId,
       coalesce(creator.name, "") AS authorName,
       authorType,
-      coalesce(a.status, "draft") AS status
+      coalesce(a.status, "draft") AS status,
+      coalesce(a.visibility, "institution") AS visibility,
+      a.imageUrl AS imageUrl,
+      a.date AS date
     ORDER BY a.createdAt DESC
     `,
     { clubId }
@@ -262,10 +287,17 @@ export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
         ? "published"
         : e.status === "pending"
         ? "pending"
+        : e.status === "approved"
+        ? "approved"
         : "draft") as const,
+      visibility: e.visibility as "institution" | "public" | "restricted" | undefined,
+      imageUrl: e.imageUrl || undefined,
       startAt: e.startAt,
       endAt: e.endAt,
       venue: e.venue,
+      link: e.link || undefined,
+      maxSlots: e.maxSlots || undefined,
+      tags: e.tags && e.tags.length > 0 ? e.tags : undefined,
     })),
     ...announcements.map((a) => ({
       id: a.id,
@@ -280,7 +312,12 @@ export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
         ? "published"
         : a.status === "pending"
         ? "pending"
+        : a.status === "approved"
+        ? "approved"
         : "draft") as const,
+      visibility: a.visibility as "institution" | "public" | "restricted" | undefined,
+      imageUrl: a.imageUrl || undefined,
+      date: a.date || undefined,
     })),
   ].sort((a, b) => {
     const dateA = new Date(a.createdAt).getTime();

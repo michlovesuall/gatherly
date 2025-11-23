@@ -59,23 +59,17 @@ export function studentSidebar(u: SessionUser): SidebarConfig {
     },
   ];
 
-  if ((u.clubs ?? []).some((c) => c.role === "officer")) {
+  // Add "My Club" group if student belongs to any clubs
+  const studentClubs = (u.clubs ?? []).filter((c) => c.role === "member" || c.role === "officer");
+  if (studentClubs.length > 0) {
     base.push({
-      title: "Officer",
-      items: [
-        { key: "club-tools", label: "Club Tools", href: "/dashboard/officer" },
-        {
-          key: "drafts",
-          label: "Event Drafts",
-          href: "/dashboard/officer/drafts",
-          badgeCountKey: "pending",
-        },
-        {
-          key: "attendance",
-          label: "RSVP & Check-ins",
-          href: "/dashboard/officer/attendance",
-        },
-      ],
+      title: "My Club",
+      items: studentClubs.map((club) => ({
+        key: `club-${club.clubId}`,
+        label: club.clubAcronym || club.clubName,
+        href: `/dashboard/student/clubs/${club.clubId}`,
+        icon: Building2,
+      })),
     });
   }
 
@@ -91,13 +85,13 @@ export function employeeSidebar(u: SessionUser): SidebarConfig {
         {
           key: "newsfeed",
           label: "Newsfeed",
-          href: "/dashboard/employee/feed",
+          href: "/dashboard/employee/newsfeed",
           icon: Newspaper,
         },
         {
           key: "events",
           label: "Events",
-          href: "/dashboard/employee/feed#events",
+          href: "/dashboard/employee/newsfeed#events",
           icon: Calendar,
         },
         {

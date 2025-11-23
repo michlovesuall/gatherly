@@ -1260,11 +1260,11 @@ export function InstitutionUsersPage({
             </div>
             
             {/* Student Form */}
-            <TabsContent value="student" className="mt-0 flex-1 min-h-0 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="px-6">
-                  <form onSubmit={studentForm.handleSubmit(handleAddStudent)}>
-                    <div className="space-y-4 pb-4">
+            <TabsContent value="student" className="mt-0 flex-1 min-h-0 overflow-hidden flex flex-col">
+              <form onSubmit={studentForm.handleSubmit(handleAddStudent)} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="px-6 py-4">
+                    <div className="space-y-4">
                       {formError && (
                         <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
                           {formError}
@@ -1502,41 +1502,44 @@ export function InstitutionUsersPage({
                         </div>
                       </div>
                     </div>
-                    <DialogFooter className="pt-4 pb-6 px-0">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsAddModalOpen(false);
-                          studentForm.reset();
-                          setFormError(null);
-                        }}
-                        disabled={studentForm.formState.isSubmitting}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={studentForm.formState.isSubmitting}>
-                        {studentForm.formState.isSubmitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          "Add Student"
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </form>
+                  </div>
                 </div>
-              </ScrollArea>
+                <DialogFooter className="px-6 pt-4 pb-6 flex-shrink-0 border-t bg-background sticky bottom-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      studentForm.reset();
+                      setFormError(null);
+                    }}
+                    disabled={studentForm.formState.isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={studentForm.formState.isSubmitting}
+                  >
+                    {studentForm.formState.isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Add Student"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
             </TabsContent>
 
             {/* Employee Form */}
-            <TabsContent value="employee" className="mt-0 flex-1 min-h-0 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className="px-6">
-                  <form onSubmit={employeeForm.handleSubmit(handleAddEmployee)}>
-                    <div className="space-y-4 pb-4">
+            <TabsContent value="employee" className="mt-0 flex-1 min-h-0 overflow-hidden flex flex-col">
+              <form onSubmit={employeeForm.handleSubmit(handleAddEmployee)} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="px-6 py-4">
+                    <div className="space-y-4">
                       {formError && (
                         <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
                           {formError}
@@ -1774,33 +1777,36 @@ export function InstitutionUsersPage({
                         </div>
                       </div>
                     </div>
-                    <DialogFooter className="pt-4 pb-6 px-0">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsAddModalOpen(false);
-                          employeeForm.reset();
-                          setFormError(null);
-                        }}
-                        disabled={employeeForm.formState.isSubmitting}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={employeeForm.formState.isSubmitting}>
-                        {employeeForm.formState.isSubmitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          "Add Employee"
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </form>
+                  </div>
                 </div>
-              </ScrollArea>
+                <DialogFooter className="px-6 pt-4 pb-6 flex-shrink-0 border-t bg-background sticky bottom-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      employeeForm.reset();
+                      setFormError(null);
+                    }}
+                    disabled={employeeForm.formState.isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={employeeForm.formState.isSubmitting}
+                  >
+                    {employeeForm.formState.isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Add Employee"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
             </TabsContent>
           </Tabs>
         </DialogContent>

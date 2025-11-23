@@ -7,6 +7,7 @@ export type PlatformRole =
 export type ClubMembership = {
   clubId: string;
   clubName: string;
+  clubAcronym?: string;
   role: "member" | "officer";
 };
 

@@ -1,20 +1,22 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import {
-  getAdvisorClubDetails,
+  getStudentClubDetails,
+} from "@/lib/repos/student";
+import {
   getClubMembers,
   getClubPosts,
 } from "@/lib/repos/employee";
-import { AdvisorClubDashboard } from "./_components/advisor-club-dashboard";
+import { StudentClubDashboard } from "./_components/student-club-dashboard";
 
-export default async function AdvisorClubPage({
+export default async function StudentClubPage({
   params,
 }: {
   params: Promise<{ clubId: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.role !== "employee" && session.role !== "staff") {
+  if (session.role !== "student") {
     redirect(`/dashboard/${session.role}`);
   }
 
@@ -22,17 +24,17 @@ export default async function AdvisorClubPage({
 
   // Fetch club details, members, and posts in parallel
   const [clubDetails, members, posts] = await Promise.all([
-    getAdvisorClubDetails(session.userId, clubId),
+    getStudentClubDetails(session.userId, clubId),
     getClubMembers(clubId),
     getClubPosts(clubId),
   ]);
 
   if (!clubDetails) {
-    redirect("/dashboard/employee");
+    redirect("/dashboard/student/newsfeed");
   }
 
   return (
-    <AdvisorClubDashboard
+    <StudentClubDashboard
       clubDetails={clubDetails}
       initialMembers={members}
       initialPosts={posts}
@@ -40,3 +42,4 @@ export default async function AdvisorClubPage({
     />
   );
 }
+

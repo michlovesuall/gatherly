@@ -12,14 +12,14 @@ export default async function EmployeeNewsfeedPage() {
     redirect("/login");
   }
 
-  if (session.role !== "employee") {
+  if (session.role !== "employee" && session.role !== "staff") {
     redirect(`/dashboard/${session.role}/newsfeed`);
   }
 
   // Fetch all data in parallel
   const [context, feedItems, myEvents, certificates] = await Promise.all([
     getNewsfeedContext(session.userId),
-    getNewsfeedItems(session.userId, session.institutionId, "for-you"),
+    getNewsfeedItems(session.userId, session.institutionId || "", "for-you"),
     getMyEvents(session.userId),
     getCertificates(session.userId),
   ]);

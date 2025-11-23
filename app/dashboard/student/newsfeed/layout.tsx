@@ -6,7 +6,7 @@ export default function NewsfeedLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="h-screen bg-background overflow-hidden">
+    <div className="h-screen bg-background overflow-hidden -m-4 md:-m-6">
       {children}
     </div>
   );
