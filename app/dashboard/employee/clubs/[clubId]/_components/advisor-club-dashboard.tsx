@@ -156,6 +156,8 @@ export function AdvisorClubDashboard({
     useState(false);
   const [showFeed, setShowFeed] = useState(true);
   const [isDeletingPost, setIsDeletingPost] = useState<string | null>(null);
+  const [postToDelete, setPostToDelete] = useState<ClubPost | null>(null);
+  const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
   const [isClubSettingsModalOpen, setIsClubSettingsModalOpen] = useState(false);
   const [clubName, setClubName] = useState(clubDetails.clubName);
   const [clubAcronym, setClubAcronym] = useState(clubDetails.acronym || "");
@@ -637,20 +639,20 @@ export function AdvisorClubDashboard({
     }
   };
 
-  // Handle delete post
-  const handleDeletePost = async (post: ClubPost) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete "${post.title}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
+  // Handle delete post confirmation
+  const handleDeletePostClick = (post: ClubPost) => {
+    setPostToDelete(post);
+    setIsDeleteConfirmModalOpen(true);
+  };
 
-    setIsDeletingPost(post.id);
+  // Handle delete post
+  const handleDeletePost = async () => {
+    if (!postToDelete) return;
+
+    setIsDeletingPost(postToDelete.id);
     try {
       const res = await fetch(
-        `/api/employee/clubs/${clubId}/posts/${post.id}`,
+        `/api/employee/clubs/${clubId}/posts/${postToDelete.id}`,
         {
           method: "DELETE",
         }
@@ -664,7 +666,9 @@ export function AdvisorClubDashboard({
       }
 
       // Remove post from list
-      setPosts(posts.filter((p) => p.id !== post.id));
+      setPosts(posts.filter((p) => p.id !== postToDelete.id));
+      setIsDeleteConfirmModalOpen(false);
+      setPostToDelete(null);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to delete post");
     } finally {
@@ -928,106 +932,113 @@ export function AdvisorClubDashboard({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* Compact Header */}
-      <div className="sticky top-0 z-50 w-full bg-background border-b">
-        <Card className="rounded-none border-x-0 border-t-0 w-full">
-          <CardContent className="px-0">
-            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-3 px-4 lg:px-6">
-              {/* Left Side */}
-              <div className="flex items-center gap-2 lg:gap-3 flex-1">
-                <SidebarTrigger className="cursor-pointer" />
-                <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
-                  <AvatarImage
-                    src={clubDetails.logo}
-                    alt={clubDetails.clubName}
-                  />
-                  <AvatarFallback>
-                    {clubDetails.acronym
-                      ? clubDetails.acronym.toUpperCase().slice(0, 2)
-                      : getInitials(clubDetails.clubName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h1 className="text-base font-semibold">
-                    {clubDetails.clubName}
-                  </h1>
-                  <div className="text-xs text-muted-foreground">
-                    {clubDetails.acronym && <span>{clubDetails.acronym}</span>}
-                    {clubDetails.acronym &&
-                      clubDetails.memberCount !== undefined &&
-                      " • "}
-                    {clubDetails.memberCount !== undefined && (
-                      <span>{clubDetails.memberCount} Members</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Middle - Empty space for layout consistency */}
-              <div className="flex items-center justify-center flex-1"></div>
-
-              {/* Right Side - Action Buttons */}
-              <div className="flex items-center gap-1 flex-1 justify-end">
-                <Button
-                  variant={showFeed ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 px-2 lg:px-3 text-xs"
-                  onClick={() => setShowFeed(true)}
-                >
-                  <Rss className="h-3 w-3 lg:h-4 lg:w-4 lg:mr-2" />
-                  <span className="hidden lg:inline">Feed</span>
-                </Button>
-                <Button
-                  variant={!showFeed ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 px-2 lg:px-3 text-xs"
-                  onClick={() => setShowFeed(false)}
-                >
-                  <ClipboardCheck className="h-3 w-3 lg:h-4 lg:w-4 lg:mr-2" />
-                  <span className="hidden lg:inline">Approvals</span>
-                  {pendingCount > 0 && (
-                    <Badge className="ml-2" variant="destructive">
-                      {pendingCount}
+    <div className="h-screen flex flex-col bg-gradient-to-b from-background to-muted/20 overflow-hidden">
+      {/* Enhanced Header */}
+      <div className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b shadow-sm">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-4 py-3">
+            {/* Left Side - Club Info */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <SidebarTrigger className="cursor-pointer shrink-0" />
+              <Avatar className="h-10 w-10 lg:h-12 lg:w-12 ring-2 ring-primary/20 shrink-0">
+                <AvatarImage
+                  src={clubDetails.logo}
+                  alt={clubDetails.clubName}
+                />
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  {clubDetails.acronym
+                    ? clubDetails.acronym.toUpperCase().slice(0, 2)
+                    : getInitials(clubDetails.clubName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg lg:text-xl font-bold truncate">
+                  {clubDetails.clubName}
+                </h1>
+                <div className="flex items-center gap-2 text-xs lg:text-sm text-muted-foreground">
+                  {clubDetails.acronym && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                      {clubDetails.acronym}
                     </Badge>
                   )}
-                </Button>
-                {isAdvisorOrPresident && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-2 lg:px-3 text-xs"
-                    onClick={() => setIsClubSettingsModalOpen(true)}
-                  >
-                    <Settings className="h-3 w-3 lg:h-4 lg:w-4 lg:mr-2" />
-                    <span className="hidden lg:inline">Club Settings</span>
-                  </Button>
-                )}
+                  {clubDetails.memberCount !== undefined && (
+                    <>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <UsersIcon className="h-3 w-3" />
+                        {clubDetails.memberCount} Members
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Right Side - Action Buttons */}
+            <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+              <Button
+                variant={showFeed ? "default" : "outline"}
+                size="sm"
+                className="h-9 px-3 lg:px-4 text-xs lg:text-sm font-medium"
+                onClick={() => setShowFeed(true)}
+              >
+                <Rss className="h-3.5 w-3.5 lg:h-4 lg:w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Feed</span>
+              </Button>
+              <Button
+                variant={!showFeed ? "default" : "outline"}
+                size="sm"
+                className="h-9 px-3 lg:px-4 text-xs lg:text-sm font-medium relative"
+                onClick={() => setShowFeed(false)}
+              >
+                <ClipboardCheck className="h-3.5 w-3.5 lg:h-4 lg:w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Approvals</span>
+                {pendingCount > 0 && (
+                  <Badge className="ml-2 h-5 min-w-5 px-1.5 flex items-center justify-center" variant="destructive">
+                    {pendingCount}
+                  </Badge>
+                )}
+              </Button>
+              {isAdvisorOrPresident && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 lg:px-4 text-xs lg:text-sm font-medium"
+                  onClick={() => setIsClubSettingsModalOpen(true)}
+                >
+                  <Settings className="h-3.5 w-3.5 lg:h-4 lg:w-4 lg:mr-2" />
+                  <span className="hidden lg:inline">Settings</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
-        <div className="container mx-auto h-full px-4 py-6">
+        <div className="container mx-auto h-full px-4 py-6 flex flex-col">
           {showFeed ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
               {/* Left Column - Feed (2/3) */}
-              <div className="lg:col-span-2 h-full overflow-y-auto">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-4">
-                      <CardTitle>Feed</CardTitle>
+              <div className="lg:col-span-2 flex flex-col min-h-0">
+                <Card className="shadow-sm flex flex-col h-full overflow-hidden">
+                  <CardHeader className="pb-4 sticky top-0 z-10 bg-background border-b shrink-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-lg lg:text-xl">Feed</CardTitle>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Latest updates and announcements
+                        </p>
+                      </div>
 
-                      {/* Filters - Middle */}
-                      <div className="flex items-center gap-2 flex-1 justify-center">
+                      {/* Filters and Post Button */}
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
                         <Select
                           value={dateFilter}
                           onValueChange={setDateFilter}
                         >
-                          <SelectTrigger className="w-[140px] h-8 text-xs">
+                          <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs">
                             <SelectValue placeholder="Date" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1042,7 +1053,7 @@ export function AdvisorClubDashboard({
                           value={postTypeFilter}
                           onValueChange={setPostTypeFilter}
                         >
-                          <SelectTrigger className="w-[140px] h-8 text-xs">
+                          <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs">
                             <SelectValue placeholder="Type" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1053,34 +1064,35 @@ export function AdvisorClubDashboard({
                             <SelectItem value="event">Event</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
 
-                      {/* Post Button - Right */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" className="h-8">
-                            <Plus className="h-3 w-3 mr-2" />
-                            Post
-                            <ChevronDown className="h-3 w-3 ml-2" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handlePostTypeSelect("announcement")}
-                          >
-                            <Megaphone className="h-4 w-4 mr-2" />
-                            Announcement
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handlePostTypeSelect("event")}
-                          >
-                            <Calendar className="h-4 w-4 mr-2" />
-                            Event
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        {/* Post Button */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" className="h-9 px-3 font-medium">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Post
+                              <ChevronDown className="h-3 w-3 ml-2" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handlePostTypeSelect("announcement")}
+                            >
+                              <Megaphone className="h-4 w-4 mr-2" />
+                              Announcement
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handlePostTypeSelect("event")}
+                            >
+                              <Calendar className="h-4 w-4 mr-2" />
+                              Event
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </CardHeader>
+                  <div className="flex-1 overflow-y-auto min-h-0">
                   <CardContent className="space-y-3">
                     {filteredPosts.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground text-sm">
@@ -1090,16 +1102,17 @@ export function AdvisorClubDashboard({
                       filteredPosts.map((post) => (
                         <Card
                           key={post.id}
-                          className="overflow-hidden hover:shadow-md transition-shadow"
+                          className="overflow-hidden hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-primary/50"
                         >
                           {post.imageUrl && (
-                            <div className="relative h-32 w-full overflow-hidden">
+                            <div className="relative h-40 w-full overflow-hidden bg-muted">
                               <Image
                                 src={post.imageUrl}
                                 alt={post.title}
                                 fill
                                 className="object-cover"
                               />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                             </div>
                           )}
                           <CardHeader className="pb-2 pt-3">
@@ -1164,9 +1177,9 @@ export function AdvisorClubDashboard({
                                 >
                                   {post.status}
                                 </Badge>
-                                {(isAdvisorOrPresident ||
-                                  post.authorId === currentUserId) && (
-                                  <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1">
+                                  {(isAdvisorOrPresident ||
+                                    post.authorId === currentUserId) && (
                                     <Button
                                       size="sm"
                                       variant="ghost"
@@ -1176,32 +1189,32 @@ export function AdvisorClubDashboard({
                                     >
                                       <Pencil className="h-3 w-3" />
                                     </Button>
-                                    {isAdvisorOrPresident && (
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-6 w-6 p-0"
-                                        onClick={() =>
-                                          handleTogglePostStatus(post)
-                                        }
-                                        disabled={isUpdatingStatus === post.id}
-                                        title={
-                                          post.status === "hidden"
-                                            ? "Show post"
-                                            : "Hide post"
-                                        }
-                                      >
-                                        {isUpdatingStatus === post.id ? (
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                        ) : post.status === "hidden" ? (
-                                          <Eye className="h-3 w-3" />
-                                        ) : (
-                                          <EyeOff className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
+                                  )}
+                                  {isAdvisorOrPresident && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() =>
+                                        handleTogglePostStatus(post)
+                                      }
+                                      disabled={isUpdatingStatus === post.id}
+                                      title={
+                                        post.status === "hidden"
+                                          ? "Show post"
+                                          : "Hide post"
+                                      }
+                                    >
+                                      {isUpdatingStatus === post.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : post.status === "hidden" ? (
+                                        <Eye className="h-3 w-3" />
+                                      ) : (
+                                        <EyeOff className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </CardHeader>
@@ -1308,9 +1321,10 @@ export function AdvisorClubDashboard({
                             </CardContent>
                           )}
                         </Card>
-                      ))
-                    )}
+                          ))
+                        )}
                   </CardContent>
+                  </div>
                 </Card>
               </div>
 
@@ -1320,45 +1334,52 @@ export function AdvisorClubDashboard({
                   <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between mb-4">
-                        <CardTitle>Members</CardTitle>
+                        <div>
+                          <CardTitle className="text-lg">Members</CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
+                          </p>
+                        </div>
                         {canAddMembers && (
                           <Button
                             size="sm"
                             variant="outline"
+                            className="h-9 px-3 font-medium"
                             onClick={() => setIsAddMemberModalOpen(true)}
                           >
                             <UserPlus className="h-4 w-4 mr-2" />
-                            Add Member
+                            Add
                           </Button>
                         )}
                       </div>
                       <div className="relative">
-                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Search by name..."
+                          placeholder="Search members..."
                           value={memberSearch}
                           onChange={(e) => setMemberSearch(e.target.value)}
-                          className="pl-8"
+                          className="pl-9 h-9"
                         />
                       </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         {/* Adviser Section */}
-                        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/10">
                           <div className="flex items-center gap-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarFallback>
+                            <Avatar className="h-11 w-11 ring-2 ring-primary/20">
+                              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                                 {getInitials(
                                   clubDetails.advisorName || "Adviser"
                                 )}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium text-sm">
+                              <p className="font-semibold text-sm">
                                 {clubDetails.advisorName}
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <UsersIcon className="h-3 w-3" />
                                 Adviser
                               </p>
                             </div>
@@ -1366,52 +1387,56 @@ export function AdvisorClubDashboard({
                           <Button
                             size="sm"
                             variant="outline"
+                            className="h-8 px-2"
                             onClick={() => {
                               // You can add view adviser functionality here
                             }}
                           >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
+                            <Eye className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                         {filteredMembers.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
+                          <div className="text-center py-8 text-muted-foreground text-sm">
                             No members found
                           </div>
                         ) : (
                           filteredMembers.map((member) => (
                             <div
                               key={member.userId}
-                              className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition-colors"
+                              className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-muted"
                             >
                               <div className="flex items-center gap-3">
-                                <Avatar className="h-10 w-10">
+                                <Avatar className="h-11 w-11">
                                   <AvatarImage
                                     src={member.avatarUrl}
                                     alt={member.name}
                                   />
-                                  <AvatarFallback>
+                                  <AvatarFallback className="bg-muted">
                                     {getInitials(member.name)}
                                   </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                  <p className="font-medium text-sm">
+                                  <p className="font-semibold text-sm">
                                     {member.name}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {member.role === "officer"
-                                      ? "President"
-                                      : "Member"}
+                                    {member.role === "officer" ? (
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                        President
+                                      </Badge>
+                                    ) : (
+                                      "Member"
+                                    )}
                                   </p>
                                 </div>
                               </div>
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className="h-8 px-2"
                                 onClick={() => handleViewMember(member)}
                               >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           ))
@@ -1650,7 +1675,7 @@ export function AdvisorClubDashboard({
                                   <Button
                                     size="sm"
                                     variant="destructive"
-                                    onClick={() => handleDeletePost(post)}
+                                    onClick={() => handleDeletePostClick(post)}
                                     disabled={isDeletingPost === post.id}
                                   >
                                     {isDeletingPost === post.id ? (
@@ -3228,6 +3253,55 @@ export function AdvisorClubDashboard({
                 </>
               ) : (
                 "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={isDeleteConfirmModalOpen}
+        onOpenChange={(open) => {
+          setIsDeleteConfirmModalOpen(open);
+          if (!open) {
+            setPostToDelete(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Post</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{postToDelete?.title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteConfirmModalOpen(false);
+                setPostToDelete(null);
+              }}
+              disabled={isDeletingPost !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeletePost}
+              disabled={isDeletingPost !== null}
+            >
+              {isDeletingPost ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
               )}
             </Button>
           </DialogFooter>

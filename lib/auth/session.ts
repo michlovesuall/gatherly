@@ -21,6 +21,7 @@ export async function getSession(): Promise<Session | null> {
   }
 
   try {
+    // Try user-based session first
     const result = await runQuery<{
       userId: string;
       role: string;
@@ -29,15 +30,16 @@ export async function getSession(): Promise<Session | null> {
       name: string;
     }>(
       `
-      MATCH (u:User)
-      WHERE EXISTS {
-        (u)-[:HAS_SESSION]->(s:Session {token: $token})
-      }
+      MATCH (s:Session {token: $token})<-[:HAS_SESSION]-(u:User)
       OPTIONAL MATCH (u)-[:MEMBER_OF]->(i:Institution)
-      WITH u, i,
+      OPTIONAL MATCH (u)-[:MEMBER_OF_CLUB]->(c:Club)-[:BELONGS_TO]->(clubInst)
+      WHERE (coalesce(clubInst.platformRole, "") = "institution" OR clubInst:Institution)
+      WITH u, i, clubInst,
         CASE 
-          WHEN u.platformRole = "institution" THEN coalesce(u.userId, "")
-          ELSE COALESCE(i.userId, i.institutionId, "")
+          WHEN u.platformRole = "institution" OR toLower(coalesce(u.platformRole, "")) = "institution" THEN coalesce(u.userId, "")
+          WHEN i IS NOT NULL THEN COALESCE(i.userId, i.institutionId, "")
+          WHEN clubInst IS NOT NULL THEN COALESCE(clubInst.userId, clubInst.institutionId, "")
+          ELSE ""
         END AS institutionId,
         CASE 
           WHEN u.platformRole = "institution" OR toLower(coalesce(u.platformRole, "")) = "institution" THEN "institution"
@@ -52,18 +54,68 @@ export async function getSession(): Promise<Session | null> {
       { token: sessionToken }
     );
 
-    if (!result.length) {
-      return null;
+    if (result.length) {
+      const user = result[0];
+      return {
+        userId: user.userId,
+        role: user.role as Session["role"],
+        institutionId: user.institutionId || "",
+        email: user.email,
+        name: user.name,
+      };
     }
 
-    const user = result[0];
-    return {
-      userId: user.userId,
-      role: user.role as Session["role"],
-      institutionId: user.institutionId || "",
-      email: user.email,
-      name: user.name,
-    };
+    // Fallback to institution session (User-labeled)
+    const inst = await runQuery<{
+      institutionId: string;
+      institutionName: string;
+    }>(
+      `
+      MATCH (s:Session {token: $token})<-[:HAS_SESSION]-(i:User {platformRole: "institution"})
+      RETURN i.userId AS institutionId,
+             coalesce(i.name, "Institution") AS institutionName
+      LIMIT 1
+      `,
+      { token: sessionToken }
+    );
+
+    if (inst.length) {
+      const i = inst[0];
+      return {
+        userId: i.institutionId,
+        role: "institution" as Session["role"],
+        institutionId: i.institutionId,
+        email: "",
+        name: i.institutionName,
+      };
+    }
+
+    // Legacy fallback: Institution-labeled node
+    const instLegacy = await runQuery<{
+      institutionId: string;
+      institutionName: string;
+    }>(
+      `
+      MATCH (s:Session {token: $token})<-[:HAS_SESSION]-(i:Institution)
+      RETURN coalesce(i.userId, i.institutionId) AS institutionId,
+             coalesce(i.name, i.institutionName, "Institution") AS institutionName
+      LIMIT 1
+      `,
+      { token: sessionToken }
+    );
+
+    if (instLegacy.length) {
+      const i = instLegacy[0];
+      return {
+        userId: i.institutionId,
+        role: "institution" as Session["role"],
+        institutionId: i.institutionId,
+        email: "",
+        name: i.institutionName,
+      };
+    }
+
+    return null;
   } catch (error) {
     console.error("Session validation error:", error);
     return null;

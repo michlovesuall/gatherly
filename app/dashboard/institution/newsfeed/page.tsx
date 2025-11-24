@@ -5,7 +5,11 @@ import { NewsfeedPage } from "../../student/newsfeed/_components/newsfeed-page";
 
 export const revalidate = 60; // ISR for feed data
 
-export default async function InstitutionNewsfeedPage() {
+export default async function InstitutionNewsfeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const session = await getSession();
 
   if (!session) {
@@ -16,10 +20,13 @@ export default async function InstitutionNewsfeedPage() {
     redirect(`/dashboard/${session.role}/newsfeed`);
   }
 
-  // Fetch only necessary data for Institution role
+  const params = await searchParams;
+  const filter = (params?.filter as "for-you" | "global") || "global";
+
+  // Fetch only necessary data for Institution role - use filter from URL
   const [context, feedItems] = await Promise.all([
     getNewsfeedContext(session.userId),
-    getNewsfeedItems(session.userId, session.institutionId, "for-you"),
+    getNewsfeedItems(session.userId, session.institutionId, filter),
   ]);
 
   return (

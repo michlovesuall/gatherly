@@ -5,8 +5,14 @@ import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Calendar, Users, Award } from "lucide-react";
 import type { NewsfeedContext } from "@/lib/repos/student";
 
@@ -25,8 +31,10 @@ export function NewsfeedHeader({
 }: NewsfeedHeaderProps) {
   const router = useRouter();
   const [greeting, setGreeting] = useState<string>("");
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const hour = new Date().getHours();
     setGreeting(
       hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
@@ -51,7 +59,7 @@ export function NewsfeedHeader({
         <CardContent className="px-0">
           <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-3 px-4 lg:px-6">
             {/* Left Side */}
-            <div className="flex items-center gap-2 lg:gap-3 flex-1">
+            <div className="flex items-center gap-2 lg:gap-3">
               <SidebarTrigger className="cursor-pointer" />
               <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
                 <AvatarImage src={context.avatarUrl} alt={context.userName} />
@@ -76,22 +84,29 @@ export function NewsfeedHeader({
               </div>
             </div>
 
-            {/* Middle - Filter Tabs (Centered) */}
-            <div className="flex items-center justify-center flex-1">
-              <Tabs
-                value={feedFilter}
-                onValueChange={(v) => onFilterChange(v as "for-you" | "global")}
-              >
-                <TabsList className="h-8">
-                  <TabsTrigger value="for-you" className="text-xs px-3">
-                    For You
-                  </TabsTrigger>
-                  <TabsTrigger value="global" className="text-xs px-3">
-                    Global
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
+            {/* Middle - Filter Dropdown (Centered) - Only show for Student, Employee, and Institution roles */}
+            {role !== "super_admin" && (
+              <div className="flex items-center justify-center flex-1">
+                {isMounted ? (
+                  <Select
+                    value={feedFilter}
+                    onValueChange={(value) => onFilterChange(value as "for-you" | "global")}
+                  >
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <SelectValue placeholder="Select filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="for-you">Institution</SelectItem>
+                      <SelectItem value="global">Global</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="w-[140px] h-8 border border-input rounded-md bg-background flex items-center justify-center text-xs text-muted-foreground">
+                    {feedFilter === "for-you" ? "Institution" : "Global"}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Right Side - Action Buttons */}
             <div className="flex items-center gap-1 flex-1 justify-end">

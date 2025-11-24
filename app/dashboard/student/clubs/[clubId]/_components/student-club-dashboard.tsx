@@ -24,6 +24,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Calendar,
   Megaphone,
@@ -152,9 +154,32 @@ export function StudentClubDashboard({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<ClubPost | null>(null);
   const [isViewPostModalOpen, setIsViewPostModalOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<ClubPost | null>(null);
+  const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
 
-  // Check if user is president
+  // Post Modal states
+  const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+  const [postType, setPostType] = useState<"announcement" | "event" | null>(null);
+  const [postFormData, setPostFormData] = useState({
+    title: "",
+    description: "",
+    visibility: "institution" as "institution" | "public" | "restricted",
+    date: "",
+    endDate: "",
+    venue: "",
+    link: "",
+    maxSlots: "",
+    tags: [] as string[],
+    image: null as File | null,
+  });
+  const [tagInput, setTagInput] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+
+  // Check if user is president or advisor
   const isPresident = clubDetails.isPresident || clubDetails.isOfficer;
+  const isAdvisor = currentUserId === clubDetails.advisorId;
+  const canHidePosts = isPresident || isAdvisor;
 
   // Helper function to get initials
   const getInitials = (name: string) => {
@@ -483,20 +508,20 @@ export function StudentClubDashboard({
     }
   };
 
-  // Handle delete post
-  const handleDeletePost = async (post: ClubPost) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete "${post.title}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
+  // Handle delete post confirmation
+  const handleDeletePostClick = (post: ClubPost) => {
+    setPostToDelete(post);
+    setIsDeleteConfirmModalOpen(true);
+  };
 
-    setIsDeletingPost(post.id);
+  // Handle delete post
+  const handleDeletePost = async () => {
+    if (!postToDelete) return;
+
+    setIsDeletingPost(postToDelete.id);
     try {
       const res = await fetch(
-        `/api/student/clubs/${clubId}/posts/${post.id}`,
+        `/api/student/clubs/${clubId}/posts/${postToDelete.id}`,
         {
           method: "DELETE",
         }
@@ -510,11 +535,144 @@ export function StudentClubDashboard({
       }
 
       // Remove post from list
-      setPosts(posts.filter((p) => p.id !== post.id));
+      setPosts(posts.filter((p) => p.id !== postToDelete.id));
+      setIsDeleteConfirmModalOpen(false);
+      setPostToDelete(null);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to delete post");
     } finally {
       setIsDeletingPost(null);
+    }
+  };
+
+  // Handle post type selection
+  const handlePostTypeSelect = (type: "announcement" | "event") => {
+    setPostType(type);
+    setIsPostModalOpen(true);
+  };
+
+  // Handle image file selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPostFormData({ ...postFormData, image: file });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Fetch posts from API
+  const fetchPosts = async () => {
+    try {
+      const res = await fetch(`/api/student/clubs/${clubId}/posts`);
+      const data = await res.json();
+      if (data?.ok && data?.posts) {
+        setPosts(data.posts);
+      }
+    } catch (error) {
+      console.error("Failed to fetch posts:", error);
+    }
+  };
+
+  // Handle create post
+  const handleCreatePost = async () => {
+    if (!postType) return;
+
+    if (!postFormData.title.trim()) {
+      alert("Please enter a title");
+      return;
+    }
+
+    if (!postFormData.description.trim()) {
+      alert("Please enter a description");
+      return;
+    }
+
+    if (postType === "event") {
+      if (!postFormData.date) {
+        alert("Please select a start date");
+        return;
+      }
+      if (!postFormData.endDate) {
+        alert("Please select an end date");
+        return;
+      }
+      if (!postFormData.venue.trim()) {
+        alert("Please enter a venue for the event");
+        return;
+      }
+      if (postFormData.tags.length === 0) {
+        alert("Please add at least one tag");
+        return;
+      }
+    }
+
+    setIsSubmittingPost(true);
+    try {
+      const formData = new FormData();
+      formData.append("type", postType);
+      formData.append("title", postFormData.title);
+      formData.append("description", postFormData.description);
+      formData.append("visibility", postFormData.visibility);
+      if (postType === "event") {
+        formData.append("date", postFormData.date);
+        if (postFormData.endDate) {
+          formData.append("endDate", postFormData.endDate);
+        }
+        formData.append("venue", postFormData.venue);
+        if (postFormData.link) {
+          formData.append("link", postFormData.link);
+        }
+        if (postFormData.maxSlots) {
+          formData.append("maxSlots", postFormData.maxSlots);
+        }
+        if (postFormData.tags.length > 0) {
+          formData.append("tags", postFormData.tags.join(", "));
+        }
+      }
+      if (postFormData.image) {
+        formData.append("image", postFormData.image);
+      }
+
+      const res = await fetch(`/api/student/clubs/${clubId}/posts`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Failed to create post");
+        return;
+      }
+
+      // Reset form and close modal
+      setPostFormData({
+        title: "",
+        description: "",
+        visibility: "institution",
+        date: "",
+        endDate: "",
+        venue: "",
+        link: "",
+        maxSlots: "",
+        tags: [],
+        image: null,
+      });
+      setTagInput("");
+      setImagePreview(null);
+      setPostType(null);
+      setIsPostModalOpen(false);
+
+      // Fetch updated posts
+      await fetchPosts();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to create post");
+    } finally {
+      setIsSubmittingPost(false);
     }
   };
 
@@ -566,88 +724,90 @@ export function StudentClubDashboard({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* Compact Header */}
-      <div className="sticky top-0 z-50 w-full bg-background border-b">
-        <Card className="rounded-none border-x-0 border-t-0 w-full">
-          <CardContent className="px-0">
-            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-3 px-4 lg:px-6">
-              {/* Left Side */}
-              <div className="flex items-center gap-2 lg:gap-3 flex-1">
-                <SidebarTrigger className="cursor-pointer" />
-                <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
-                  <AvatarImage
-                    src={clubDetails.logo}
-                    alt={clubDetails.clubName}
-                  />
-                  <AvatarFallback>
-                    {clubDetails.acronym
-                      ? clubDetails.acronym.toUpperCase().slice(0, 2)
-                      : getInitials(clubDetails.clubName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h1 className="text-base font-semibold">
-                    {clubDetails.clubName}
-                  </h1>
-                  <div className="text-xs text-muted-foreground">
-                    {clubDetails.acronym && <span>{clubDetails.acronym}</span>}
-                    {clubDetails.acronym &&
-                      clubDetails.memberCount !== undefined &&
-                      " • "}
-                    {clubDetails.memberCount !== undefined && (
-                      <span>{clubDetails.memberCount} Members</span>
-                    )}
-                  </div>
+    <div className="h-screen flex flex-col bg-gradient-to-b from-background to-muted/20 overflow-hidden">
+      {/* Enhanced Header */}
+      <div className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b shadow-sm">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-4 py-3">
+            {/* Left Side - Club Info */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <SidebarTrigger className="cursor-pointer shrink-0" />
+              <Avatar className="h-10 w-10 lg:h-12 lg:w-12 ring-2 ring-primary/20 shrink-0">
+                <AvatarImage
+                  src={clubDetails.logo}
+                  alt={clubDetails.clubName}
+                />
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  {clubDetails.acronym
+                    ? clubDetails.acronym.toUpperCase().slice(0, 2)
+                    : getInitials(clubDetails.clubName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg lg:text-xl font-bold truncate">
+                  {clubDetails.clubName}
+                </h1>
+                <div className="flex items-center gap-2 text-xs lg:text-sm text-muted-foreground">
+                  {clubDetails.acronym && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                      {clubDetails.acronym}
+                    </Badge>
+                  )}
+                  {clubDetails.memberCount !== undefined && (
+                    <>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <UsersIcon className="h-3 w-3" />
+                        {clubDetails.memberCount} Members
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
-
-              {/* Middle - Empty space for layout consistency */}
-              <div className="flex items-center justify-center flex-1"></div>
-
-              {/* Right Side - Action Buttons */}
-              <div className="flex items-center gap-1 flex-1 justify-end">
-                <Button
-                  variant={showFeed && !showPostHistory ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 px-2 lg:px-3 text-xs"
-                  onClick={() => {
-                    setShowFeed(true);
-                    setShowPostHistory(false);
-                  }}
-                >
-                  <Rss className="h-3 w-3 lg:h-4 lg:w-4 lg:mr-2" />
-                  <span className="hidden lg:inline">Feed</span>
-                </Button>
-                {isPresident && (
-                  <>
-                    <Button
-                      variant={showPostHistory ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 px-2 lg:px-3 text-xs"
-                      onClick={() => {
-                        setShowPostHistory(true);
-                        setShowFeed(false);
-                      }}
-                    >
-                      <ClipboardCheck className="h-3 w-3 lg:h-4 lg:w-4 lg:mr-2" />
-                      <span className="hidden lg:inline">Post History</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-2 lg:px-3 text-xs"
-                    onClick={() => setIsClubSettingsModalOpen(true)}
-                    >
-                      <Settings className="h-3 w-3 lg:h-4 lg:w-4 lg:mr-2" />
-                      <span className="hidden lg:inline">Club Settings</span>
-                    </Button>
-                  </>
-                )}
-              </div>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Right Side - Action Buttons */}
+            <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+              <Button
+                variant={showFeed && !showPostHistory ? "default" : "outline"}
+                size="sm"
+                className="h-9 px-3 lg:px-4 text-xs lg:text-sm font-medium"
+                onClick={() => {
+                  setShowFeed(true);
+                  setShowPostHistory(false);
+                }}
+              >
+                <Rss className="h-3.5 w-3.5 lg:h-4 lg:w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Feed</span>
+              </Button>
+              {isPresident && (
+                <>
+                  <Button
+                    variant={showPostHistory ? "default" : "outline"}
+                    size="sm"
+                    className="h-9 px-3 lg:px-4 text-xs lg:text-sm font-medium"
+                    onClick={() => {
+                      setShowPostHistory(true);
+                      setShowFeed(false);
+                    }}
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5 lg:h-4 lg:w-4 lg:mr-2" />
+                    <span className="hidden lg:inline">History</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-3 lg:px-4 text-xs lg:text-sm font-medium"
+                    onClick={() => setIsClubSettingsModalOpen(true)}
+                  >
+                    <Settings className="h-3.5 w-3.5 lg:h-4 lg:w-4 lg:mr-2" />
+                    <span className="hidden lg:inline">Settings</span>
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -807,7 +967,7 @@ export function StudentClubDashboard({
                                     <Button
                                       size="sm"
                                       variant="destructive"
-                                      onClick={() => handleDeletePost(post)}
+                                      onClick={() => handleDeletePostClick(post)}
                                       disabled={isDeletingPost === post.id}
                                     >
                                       {isDeletingPost === post.id ? (
@@ -831,19 +991,24 @@ export function StudentClubDashboard({
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
               {/* Left Column - Feed (2/3) */}
-              <div className="lg:col-span-2 h-full overflow-y-auto">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-4">
-                    <CardTitle>Feed</CardTitle>
+              <div className="lg:col-span-2 h-full flex flex-col">
+              <Card className="shadow-sm flex flex-col h-full overflow-hidden">
+                <CardHeader className="pb-4 sticky top-0 z-10 bg-background border-b shrink-0">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg lg:text-xl">Feed</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Latest updates and announcements
+                      </p>
+                    </div>
 
-                    {/* Filters - Middle */}
-                    <div className="flex items-center gap-2 flex-1 justify-center">
+                    {/* Filters and Post Button */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       <Select
                         value={dateFilter}
                         onValueChange={setDateFilter}
                       >
-                        <SelectTrigger className="w-[140px] h-8 text-xs">
+                        <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs">
                           <SelectValue placeholder="Date" />
                         </SelectTrigger>
                         <SelectContent>
@@ -858,7 +1023,7 @@ export function StudentClubDashboard({
                         value={postTypeFilter}
                         onValueChange={setPostTypeFilter}
                       >
-                        <SelectTrigger className="w-[140px] h-8 text-xs">
+                        <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs">
                           <SelectValue placeholder="Type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -869,41 +1034,38 @@ export function StudentClubDashboard({
                           <SelectItem value="event">Event</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
 
-                    {/* Post Button - Right (for President only) */}
-                    {isPresident && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" className="h-8">
-                            <Plus className="h-3 w-3 mr-2" />
-                            Post
-                            <ChevronDown className="h-3 w-3 ml-2" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              // TODO: Open post modal for announcement
-                            }}
-                          >
-                            <Megaphone className="h-4 w-4 mr-2" />
-                            Announcement
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              // TODO: Open post modal for event
-                            }}
-                          >
-                            <Calendar className="h-4 w-4 mr-2" />
-                            Event
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+                      {/* Post Button - Right (for President only) */}
+                      {isPresident && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" className="h-9 px-3 font-medium">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Post
+                              <ChevronDown className="h-3 w-3 ml-2" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handlePostTypeSelect("announcement")}
+                            >
+                              <Megaphone className="h-4 w-4 mr-2" />
+                              Announcement
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handlePostTypeSelect("event")}
+                            >
+                              <Calendar className="h-4 w-4 mr-2" />
+                              Event
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <div className="flex-1 overflow-y-auto min-h-0">
+                <CardContent className="space-y-3 pt-0">
                   {filteredPosts.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground text-sm">
                       No posts found
@@ -912,16 +1074,17 @@ export function StudentClubDashboard({
                     filteredPosts.map((post) => (
                       <Card
                         key={post.id}
-                        className="overflow-hidden hover:shadow-md transition-shadow"
+                        className="overflow-hidden hover:shadow-lg transition-all duration-200 border-l-4 border-l-transparent hover:border-l-primary/50"
                       >
                         {post.imageUrl && (
-                          <div className="relative h-32 w-full overflow-hidden">
+                          <div className="relative h-40 w-full overflow-hidden bg-muted">
                             <Image
                               src={post.imageUrl}
                               alt={post.title}
                               fill
                               className="object-cover"
                             />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                           </div>
                         )}
                         <CardHeader className="pb-2 pt-3">
@@ -970,6 +1133,30 @@ export function StudentClubDashboard({
                                 </div>
                               </div>
                             </div>
+                            {canHidePosts && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 hover:bg-muted"
+                                  onClick={() => handleTogglePostStatus(post)}
+                                  disabled={isUpdatingStatus === post.id}
+                                  title={
+                                    post.status === "hidden"
+                                      ? "Show post"
+                                      : "Hide post"
+                                  }
+                                >
+                                  {isUpdatingStatus === post.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : post.status === "hidden" ? (
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </CardHeader>
                         {post.content && (
@@ -1078,55 +1265,62 @@ export function StudentClubDashboard({
                     ))
                   )}
                 </CardContent>
+                </div>
               </Card>
             </div>
 
             {/* Right Column - Members (1/3) */}
             <div className="h-full">
               <div className="sticky top-6">
-                <Card>
-                  <CardHeader>
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-4">
                     <div className="flex items-center justify-between mb-4">
-                      <CardTitle>Members</CardTitle>
+                      <div>
+                        <CardTitle className="text-lg">Members</CardTitle>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
+                        </p>
+                      </div>
                       {isPresident && (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8"
-                    onClick={() => setIsAddMemberModalOpen(true)}
+                          className="h-9 px-3 font-medium"
+                          onClick={() => setIsAddMemberModalOpen(true)}
                         >
-                          <UserPlus className="h-3 w-3 mr-2" />
-                          Add Member
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Add
                         </Button>
                       )}
                     </div>
                     <div className="relative">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Search by name..."
+                        placeholder="Search members..."
                         value={memberSearch}
                         onChange={(e) => setMemberSearch(e.target.value)}
-                        className="pl-8"
+                        className="pl-9 h-9"
                       />
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {/* Adviser Section */}
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/10">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback>
+                          <Avatar className="h-11 w-11 ring-2 ring-primary/20">
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                               {getInitials(
                                 clubDetails.advisorName || "Adviser"
                               )}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium text-sm">
+                            <p className="font-semibold text-sm">
                               {clubDetails.advisorName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <UsersIcon className="h-3 w-3" />
                               Adviser
                             </p>
                           </div>
@@ -1140,26 +1334,30 @@ export function StudentClubDashboard({
                         filteredMembers.map((member) => (
                           <div
                             key={member.userId}
-                            className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition-colors"
+                            className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-muted"
                           >
                             <div className="flex items-center gap-3">
-                              <Avatar className="h-10 w-10">
+                              <Avatar className="h-11 w-11">
                                 <AvatarImage
                                   src={member.avatarUrl}
                                   alt={member.name}
                                 />
-                                <AvatarFallback>
+                                <AvatarFallback className="bg-muted">
                                   {getInitials(member.name)}
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="font-medium text-sm">
+                                <p className="font-semibold text-sm">
                                   {member.name}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {member.role === "officer"
-                                    ? "President"
-                                    : "Member"}
+                                  {member.role === "officer" ? (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                      President
+                                    </Badge>
+                                  ) : (
+                                    "Member"
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -1675,6 +1873,431 @@ export function StudentClubDashboard({
               }}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={isDeleteConfirmModalOpen}
+        onOpenChange={(open) => {
+          setIsDeleteConfirmModalOpen(open);
+          if (!open) {
+            setPostToDelete(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Post</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{postToDelete?.title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteConfirmModalOpen(false);
+                setPostToDelete(null);
+              }}
+              disabled={isDeletingPost !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeletePost}
+              disabled={isDeletingPost !== null}
+            >
+              {isDeletingPost ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Post Modal */}
+      <Dialog
+        open={isPostModalOpen}
+        onOpenChange={(open) => {
+          setIsPostModalOpen(open);
+          if (!open) {
+            setPostType(null);
+            setPostFormData({
+              title: "",
+              description: "",
+              visibility: "institution",
+              date: "",
+              endDate: "",
+              venue: "",
+              link: "",
+              maxSlots: "",
+              tags: [],
+              image: null,
+            });
+            setTagInput("");
+            setImagePreview(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Create {postType === "event" ? "Event" : "Announcement"}
+            </DialogTitle>
+            <DialogDescription>
+              {postType === "event"
+                ? "Create an event for the club. It will be pending until approved."
+                : "Create an announcement for the club. It will be pending until approved."}
+            </DialogDescription>
+          </DialogHeader>
+          {postType && (
+            <div className="space-y-4">
+              {/* Privacy/Visibility */}
+              <div className="grid gap-2">
+                <Label>
+                  Privacy <span className="text-red-600">*</span>
+                </Label>
+                <RadioGroup
+                  value={postFormData.visibility}
+                  onValueChange={(
+                    value: "institution" | "public" | "restricted"
+                  ) => setPostFormData({ ...postFormData, visibility: value })}
+                  className="flex flex-row gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value="institution"
+                      id="privacy-institution"
+                    />
+                    <Label
+                      htmlFor="privacy-institution"
+                      className="font-normal cursor-pointer"
+                    >
+                      Institution Only
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="public" id="privacy-public" />
+                    <Label
+                      htmlFor="privacy-public"
+                      className="font-normal cursor-pointer"
+                    >
+                      Public
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value="restricted"
+                      id="privacy-restricted"
+                    />
+                    <Label
+                      htmlFor="privacy-restricted"
+                      className="font-normal cursor-pointer"
+                    >
+                      Selected People Only
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Title */}
+              <div className="grid gap-2">
+                <Label htmlFor="title">
+                  {postType === "event" ? "Event Name" : "Announcement Name"}{" "}
+                  <span className="text-red-600">*</span>
+                </Label>
+                <Input
+                  id="title"
+                  placeholder={
+                    postType === "event"
+                      ? "Enter event name"
+                      : "Enter announcement name"
+                  }
+                  value={postFormData.title}
+                  onChange={(e) =>
+                    setPostFormData({ ...postFormData, title: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* Description */}
+              <div className="grid gap-2">
+                <Label htmlFor="description">
+                  Description <span className="text-red-600">*</span>
+                </Label>
+                <Textarea
+                  id="description"
+                  placeholder="Enter description"
+                  rows={4}
+                  value={postFormData.description}
+                  onChange={(e) =>
+                    setPostFormData({
+                      ...postFormData,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              {/* Date (Event only) */}
+              {postType === "event" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="date">
+                      Start Date <span className="text-red-600">*</span>
+                    </Label>
+                    <Input
+                      id="date"
+                      type="datetime-local"
+                      value={postFormData.date}
+                      min={new Date().toISOString().slice(0, 16)}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        const endDate = postFormData.endDate
+                          ? postFormData.endDate < newDate
+                            ? ""
+                            : postFormData.endDate
+                          : "";
+                        setPostFormData({
+                          ...postFormData,
+                          date: newDate,
+                          endDate,
+                        });
+                      }}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="endDate">
+                      End Date <span className="text-red-600">*</span>
+                    </Label>
+                    <Input
+                      id="endDate"
+                      type="datetime-local"
+                      value={postFormData.endDate}
+                      min={
+                        postFormData.date ||
+                        new Date().toISOString().slice(0, 16)
+                      }
+                      onChange={(e) =>
+                        setPostFormData({
+                          ...postFormData,
+                          endDate: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Venue (Event only) */}
+              {postType === "event" && (
+                <div className="grid gap-2">
+                  <Label htmlFor="venue">
+                    Venue <span className="text-red-600">*</span>
+                  </Label>
+                  <Input
+                    id="venue"
+                    placeholder="Enter venue"
+                    value={postFormData.venue}
+                    onChange={(e) =>
+                      setPostFormData({
+                        ...postFormData,
+                        venue: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              {/* Link and Max Slots (Event only) */}
+              {postType === "event" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="link">Registration Link (Optional)</Label>
+                    <Input
+                      id="link"
+                      type="url"
+                      placeholder="https://forms.google.com/..."
+                      value={postFormData.link}
+                      onChange={(e) =>
+                        setPostFormData({
+                          ...postFormData,
+                          link: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="maxSlots">Max Slots (Optional)</Label>
+                    <Input
+                      id="maxSlots"
+                      type="number"
+                      placeholder="Enter maximum number of participants"
+                      value={postFormData.maxSlots}
+                      onChange={(e) =>
+                        setPostFormData({
+                          ...postFormData,
+                          maxSlots: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Tags (Event only) */}
+              {postType === "event" && (
+                <div className="grid gap-2">
+                  <Label htmlFor="tags">
+                    Tags <span className="text-red-600">*</span>
+                  </Label>
+                  <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[42px]">
+                    {postFormData.tags.map((tag, index) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="flex items-center gap-1 pr-1"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPostFormData({
+                              ...postFormData,
+                              tags: postFormData.tags.filter(
+                                (_, i) => i !== index
+                              ),
+                            });
+                          }}
+                          className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <Input
+                      id="tags"
+                      placeholder={
+                        postFormData.tags.length === 0
+                          ? "Enter tags and press Enter or comma"
+                          : ""
+                      }
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (
+                          (e.key === "Enter" || e.key === ",") &&
+                          tagInput.trim()
+                        ) {
+                          e.preventDefault();
+                          const newTag = tagInput.trim().replace(/,/g, "");
+                          if (newTag && !postFormData.tags.includes(newTag)) {
+                            setPostFormData({
+                              ...postFormData,
+                              tags: [...postFormData.tags, newTag],
+                            });
+                            setTagInput("");
+                          }
+                        }
+                      }}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1 min-w-[200px]"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Press Enter or comma to add a tag. At least one tag is
+                    required. Tags help with event recommendations.
+                  </p>
+                </div>
+              )}
+
+              {/* Image Upload */}
+              <div className="grid gap-2">
+                <Label htmlFor="image">Image (Optional)</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="image"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="cursor-pointer"
+                  />
+                  {imagePreview && (
+                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border">
+                      <Image
+                        src={imagePreview}
+                        alt="Preview"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-1 right-1 h-6 w-6 p-0 z-10"
+                        onClick={() => {
+                          setImagePreview(null);
+                          setPostFormData({ ...postFormData, image: null });
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPostModalOpen(false);
+                setPostType(null);
+                setPostFormData({
+                  title: "",
+                  description: "",
+                  visibility: "institution",
+                  date: "",
+                  endDate: "",
+                  venue: "",
+                  link: "",
+                  maxSlots: "",
+                  tags: [],
+                  image: null,
+                });
+                setTagInput("");
+                setImagePreview(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreatePost}
+              disabled={isSubmittingPost || !postType}
+            >
+              {isSubmittingPost ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Post"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

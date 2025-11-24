@@ -5,7 +5,11 @@ import { NewsfeedPage } from "./_components/newsfeed-page";
 
 export const revalidate = 60; // ISR for feed data
 
-export default async function StudentNewsfeedPage() {
+export default async function StudentNewsfeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const session = await getSession();
 
   if (!session) {
@@ -16,10 +20,13 @@ export default async function StudentNewsfeedPage() {
     redirect(`/dashboard/${session.role}/newsfeed`);
   }
 
-  // Fetch all data in parallel
+  const params = await searchParams;
+  const filter = (params?.filter as "for-you" | "global") || "global";
+
+  // Fetch all data in parallel - use filter from URL
   const [context, feedItems, myEvents, certificates] = await Promise.all([
     getNewsfeedContext(session.userId),
-    getNewsfeedItems(session.userId, session.institutionId, "for-you"),
+    getNewsfeedItems(session.userId, session.institutionId, filter),
     getMyEvents(session.userId),
     getCertificates(session.userId),
   ]);

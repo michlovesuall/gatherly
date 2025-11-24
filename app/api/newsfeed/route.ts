@@ -18,15 +18,23 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const filter = (url.searchParams.get("filter") || "for-you") as "for-you" | "global";
+    const filter = (url.searchParams.get("filter") || "global") as "for-you" | "global";
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+
+    // For super_admin without institutionId, default to global view
+    const effectiveFilter = session.role === "super_admin" && !session.institutionId 
+      ? "global" 
+      : filter;
 
     const items = await getNewsfeedItems(
       session.userId,
-      session.institutionId,
-      filter,
+      session.institutionId || "",
+      effectiveFilter,
       limit
     );
+
+    // // Log for debugging (remove in production)
+    // console.log(`[Newsfeed API] Filter: ${effectiveFilter}, InstitutionId: ${session.institutionId || "none"}, Items: ${items.length}`);
 
     return NextResponse.json({ ok: true, items });
   } catch (err: unknown) {

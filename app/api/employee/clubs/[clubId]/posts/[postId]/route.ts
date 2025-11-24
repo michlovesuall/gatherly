@@ -339,8 +339,8 @@ export async function DELETE(
       MATCH (u:User {userId: $userId})
       OPTIONAL MATCH (u)-[:ADVISES]->(c1:Club {clubId: $clubId})
       OPTIONAL MATCH (u)-[:MEMBER_OF_CLUB {role: "officer"}]->(c2:Club {clubId: $clubId})
-      OPTIONAL MATCH (c:Club {clubId: $clubId})-[:HOSTS]->(e:Event {eventId: $postId})
-      OPTIONAL MATCH (c:Club {clubId: $clubId})<-[:BELONGS_TO_CLUB]-(a:Announcement {announcementId: $postId})
+      OPTIONAL MATCH (c3:Club {clubId: $clubId})-[:HOSTS]->(e:Event {eventId: $postId})
+      OPTIONAL MATCH (a:Announcement {announcementId: $postId})-[:BELONGS_TO_CLUB]->(c4:Club {clubId: $clubId})
       RETURN 
         COUNT(c1) > 0 AS isAdvisor,
         COUNT(c2) > 0 AS isPresident,

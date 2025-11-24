@@ -553,15 +553,24 @@ export interface NewsfeedItem {
   author?: string;
   authorType?: "institution" | "club";
   visibility: "public" | "institution" | "restricted";
+  imageUrl?: string;
   // Event-specific fields
   startAt?: string;
   endAt?: string;
   venue?: string;
   maxSlots?: number;
-  counts?: { going: number; interested: number; checkedIn: number; likes?: number; comments?: number };
+  counts?: {
+    going: number;
+    interested: number;
+    checkedIn: number;
+    likes?: number;
+    comments?: number;
+  };
   rsvpState?: "going" | "interested" | null;
   // Announcement-specific fields
   clubName?: string;
+  // Institution information
+  institutionName?: string;
 }
 
 /**
@@ -573,21 +582,104 @@ export async function getNewsfeedItems(
   filter: "for-you" | "global" = "for-you",
   limit = 50
 ): Promise<NewsfeedItem[]> {
-  // Get events (both institution and club events)
-  const eventsQuery = filter === "for-you"
-    ? `
+  console.log(
+    `[getNewsfeedItems] userId: ${userId}, institutionId: ${institutionId}, filter: ${filter}, limit: ${limit}`
+  );
+
+  // Debug: Log the query being used
+  if (filter === "for-you" && institutionId) {
+    console.log(
+      `[getNewsfeedItems] Using Institution filter with institutionId: ${institutionId}`
+    );
+  }
+
+  // Use half the limit for each type to ensure both events and announcements are included
+  const eventsLimit = Math.ceil(limit / 2);
+  const announcementsLimit = Math.ceil(limit / 2);
+
+  // Get events (both institution and club events) - only published/approved
+  // For "for-you" (Institution filter): Posts with "institution" visibility from the user's institution only
+  // For "global": All posts from all institutions/clubs (regardless of visibility)
+  const eventsQuery =
+    filter === "for-you" && institutionId
+      ? `
+    // Institution filter: Events with "institution" visibility from the user's institution only
+    // Approach: Find events that belong to the user's institution (directly or through clubs)
+    
+    // Get user's institution
+    MATCH (userInst)
+    WHERE (userInst.userId = $institutionId OR userInst.institutionId = $institutionId)
+      AND (coalesce(userInst.platformRole, "") = "institution" OR userInst:Institution)
+    WITH userInst
+    
+    // Find events directly from user's institution
+    OPTIONAL MATCH (e1:Event)-[:BELONGS_TO]->(userInst)
+    WHERE e1.status IN ["approved", "published"]
+      AND e1.visibility = "institution"
+      AND e1.visibility IS NOT NULL
+    
+    // Find events from clubs that belong to user's institution  
+    OPTIONAL MATCH (club:Club)-[:BELONGS_TO]->(userInst)
+    OPTIONAL MATCH (club)-[:HOSTS]->(e2:Event)
+    WHERE e2.status IN ["approved", "published"]
+      AND e2.visibility = "institution"
+      AND e2.visibility IS NOT NULL
+    
+    // Combine both types of events in the same aggregation context
+    WITH userInst, collect(DISTINCT e1) AS directEvents, collect(DISTINCT e2) AS clubEvents
+    WITH userInst, directEvents + clubEvents AS allEvents
+    UNWIND allEvents AS e
+    WITH e, userInst
+    WHERE e IS NOT NULL
+    
+    // Get RSVP and count information
+    WITH e, userInst
+    OPTIONAL MATCH (u:User {userId: $userId})-[:RSVP]->(r:RSVP)-[:FOR]->(e)
+    WITH e, u, r, userInst,
+      CASE 
+        WHEN r.state = "going" THEN "going"
+        WHEN r.state = "interested" THEN "interested"
+        ELSE null
+      END AS rsvpState
+    OPTIONAL MATCH (goingUser:User)-[:RSVP]->(goingRSVP:RSVP {state: "going"})-[:FOR]->(e)
+    OPTIONAL MATCH (interestedUser:User)-[:RSVP]->(interestedRSVP:RSVP {state: "interested"})-[:FOR]->(e)
+    OPTIONAL MATCH (checkedInUser:User)-[:CHECKED_IN]->(e)
+    WITH e, rsvpState, userInst,
+      COUNT(DISTINCT goingUser) AS going,
+      COUNT(DISTINCT interestedUser) AS interested,
+      COUNT(DISTINCT checkedInUser) AS checkedIn
+    RETURN e.eventId AS id,
+           e.title AS title,
+           e.description AS description,
+           e.startAt AS startAt,
+           e.endAt AS endAt,
+           e.venue AS venue,
+           e.visibility AS visibility,
+           e.maxSlots AS maxSlots,
+           e.imageUrl AS imageUrl,
+           {going: going, interested: interested, checkedIn: checkedIn} AS counts,
+           rsvpState,
+           COALESCE(userInst.name, userInst.institutionName, "") AS institutionName
+    ORDER BY e.startAt DESC
+    LIMIT $eventsLimit
+    `
+      : filter === "for-you"
+      ? `
+    // Institution filter: No institutionId provided, return empty
+    RETURN null AS id, null AS title, null AS description, null AS startAt, null AS endAt, 
+           null AS venue, null AS visibility, null AS maxSlots, null AS imageUrl,
+           null AS counts, null AS rsvpState, null AS institutionName
+    LIMIT 0
+    `
+      : `
+    // Global: All events from all institutions/clubs (regardless of visibility)
     MATCH (e:Event)
     WHERE e.status IN ["approved", "published"]
-      AND e.startAt >= datetime() - duration({days: 30})
-      AND e.visibility IN ["public", "institution"]
     OPTIONAL MATCH (e)-[:BELONGS_TO]->(i)
     OPTIONAL MATCH (c:Club)-[:HOSTS]->(e)
-    OPTIONAL MATCH (c)-[:BELONGS_TO]->(ci)
-    WITH e, i, c, ci
-    WHERE (i IS NOT NULL AND (i.userId = $institutionId OR i.institutionId = $institutionId))
-       OR (ci IS NOT NULL AND (ci.userId = $institutionId OR ci.institutionId = $institutionId))
+    OPTIONAL MATCH (c)-[:BELONGS_TO]->(clubInst)
     OPTIONAL MATCH (u:User {userId: $userId})-[:RSVP]->(r:RSVP)-[:FOR]->(e)
-    WITH e, u, r,
+    WITH e, u, r, i, c, clubInst,
       CASE 
         WHEN r.state = "going" THEN "going"
         WHEN r.state = "interested" THEN "interested"
@@ -596,127 +688,168 @@ export async function getNewsfeedItems(
     OPTIONAL MATCH (goingUser:User)-[:RSVP]->(goingRSVP:RSVP {state: "going"})-[:FOR]->(e)
     OPTIONAL MATCH (interestedUser:User)-[:RSVP]->(interestedRSVP:RSVP {state: "interested"})-[:FOR]->(e)
     OPTIONAL MATCH (checkedInUser:User)-[:CHECKED_IN]->(e)
-    WITH e, rsvpState,
+    WITH e, rsvpState, i, c, clubInst,
       COUNT(DISTINCT goingUser) AS going,
       COUNT(DISTINCT interestedUser) AS interested,
       COUNT(DISTINCT checkedInUser) AS checkedIn
     RETURN e.eventId AS id,
            e.title AS title,
+           e.description AS description,
            e.startAt AS startAt,
            e.endAt AS endAt,
            e.venue AS venue,
            e.visibility AS visibility,
            e.maxSlots AS maxSlots,
+           e.imageUrl AS imageUrl,
            {going: going, interested: interested, checkedIn: checkedIn} AS counts,
-           rsvpState
+           rsvpState,
+           COALESCE(i.name, i.institutionName, clubInst.name, clubInst.institutionName, "") AS institutionName
     ORDER BY e.startAt DESC
-    LIMIT $limit
-    `
-    : `
-    MATCH (e:Event)
-    WHERE e.visibility = "public"
-      AND e.status IN ["approved", "published"]
-      AND e.startAt >= datetime() - duration({days: 30})
-    OPTIONAL MATCH (u:User {userId: $userId})-[:RSVP]->(r:RSVP)-[:FOR]->(e)
-    WITH e, u, r,
-      CASE 
-        WHEN r.state = "going" THEN "going"
-        WHEN r.state = "interested" THEN "interested"
-        ELSE null
-      END AS rsvpState
-    OPTIONAL MATCH (goingUser:User)-[:RSVP]->(goingRSVP:RSVP {state: "going"})-[:FOR]->(e)
-    OPTIONAL MATCH (interestedUser:User)-[:RSVP]->(interestedRSVP:RSVP {state: "interested"})-[:FOR]->(e)
-    OPTIONAL MATCH (checkedInUser:User)-[:CHECKED_IN]->(e)
-    WITH e, rsvpState,
-      COUNT(DISTINCT goingUser) AS going,
-      COUNT(DISTINCT interestedUser) AS interested,
-      COUNT(DISTINCT checkedInUser) AS checkedIn
-    RETURN e.eventId AS id,
-           e.title AS title,
-           e.startAt AS startAt,
-           e.endAt AS endAt,
-           e.venue AS venue,
-           e.visibility AS visibility,
-           e.maxSlots AS maxSlots,
-           {going: going, interested: interested, checkedIn: checkedIn} AS counts,
-           rsvpState
-    ORDER BY e.startAt DESC
-    LIMIT $limit
+    LIMIT $eventsLimit
     `;
+
+  console.log(
+    `[getNewsfeedItems] Events query: ${eventsQuery.substring(0, 200)}...`
+  );
+  console.log(`[getNewsfeedItems] Events query params:`, {
+    userId,
+    institutionId,
+    eventsLimit,
+  });
 
   const eventsResult = await runQuery<{
     id: string;
     title: string;
+    description?: string;
     startAt: string;
     endAt?: string;
     venue?: string;
     visibility: string;
     maxSlots?: number;
+    imageUrl?: string;
     counts: { going: number; interested: number; checkedIn: number };
     rsvpState?: string;
-  }>(eventsQuery, { userId, institutionId, limit });
+    institutionName?: string;
+  }>(eventsQuery, { userId, institutionId, eventsLimit });
 
-  // Get announcements
-  const announcementsQuery = filter === "for-you"
-    ? `
-    MATCH (a:Announcement)
-    WHERE a.status IN ["approved", "published"]
-      AND a.createdAt >= datetime() - duration({days: 30})
-    OPTIONAL MATCH (a)-[:BELONGS_TO]->(i)
-    OPTIONAL MATCH (a)-[:BELONGS_TO_CLUB]->(c:Club)
-    OPTIONAL MATCH (c)-[:BELONGS_TO]->(ci)
+  console.log(`[getNewsfeedItems] Events result count: ${eventsResult.length}`);
+
+  // Get announcements (both institution and club announcements) - only published/approved
+  // For "for-you" (Institution filter): Posts with "institution" visibility from the user's institution only
+  // For "global": All posts from all institutions/clubs (regardless of visibility)
+  const announcementsQuery =
+    filter === "for-you" && institutionId
+      ? `
+    // Institution filter: Announcements with "institution" visibility from the user's institution only
+    // Approach: Find announcements that belong to the user's institution (directly or through clubs)
+    
+    // Get user's institution
+    MATCH (userInst)
+    WHERE (userInst.userId = $institutionId OR userInst.institutionId = $institutionId)
+      AND (coalesce(userInst.platformRole, "") = "institution" OR userInst:Institution)
+    WITH userInst
+    
+    // Find announcements directly from user's institution
+    OPTIONAL MATCH (a1:Announcement)-[:BELONGS_TO]->(userInst)
+    WHERE a1.status IN ["approved", "published"]
+      AND a1.visibility = "institution"
+      AND a1.visibility IS NOT NULL
+    
+    // Find announcements from clubs that belong to user's institution
+    OPTIONAL MATCH (club:Club)-[:BELONGS_TO]->(userInst)
+    OPTIONAL MATCH (a2:Announcement)-[:BELONGS_TO_CLUB]->(club)
+    WHERE a2.status IN ["approved", "published"]
+      AND a2.visibility = "institution"
+      AND a2.visibility IS NOT NULL
+    
+    // Combine both types of announcements in the same aggregation context
+    WITH userInst, collect(DISTINCT a1) AS directAnnouncements, collect(DISTINCT a2) AS clubAnnouncements
+    WITH userInst, directAnnouncements + clubAnnouncements AS allAnnouncements
+    UNWIND allAnnouncements AS a
+    WITH a, userInst
+    WHERE a IS NOT NULL
+    
+    // Get club and creator information
+    WITH a, userInst
+    OPTIONAL MATCH (a)-[:BELONGS_TO_CLUB]->(club:Club)
     OPTIONAL MATCH (a)<-[:CREATED]-(creator:User)
-    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId) 
-       OR (ci.userId = $institutionId OR ci.institutionId = $institutionId)
     RETURN a.announcementId AS id,
            a.title AS title,
            a.content AS content,
            a.createdAt AS createdAt,
-           COALESCE(creator.name, i.name, i.institutionName, "") AS author,
+           a.imageUrl AS imageUrl,
+           COALESCE(creator.name, "") AS author,
            CASE 
-             WHEN c IS NOT NULL THEN "club"
-             WHEN i IS NOT NULL THEN "institution"
+             WHEN club IS NOT NULL THEN "club"
              ELSE "institution"
            END AS authorType,
            COALESCE(a.visibility, "institution") AS visibility,
-           c.name AS clubName
+           club.name AS clubName,
+           COALESCE(userInst.name, userInst.institutionName, "") AS institutionName
     ORDER BY a.createdAt DESC
-    LIMIT $limit
+    LIMIT $announcementsLimit
     `
-    : `
+      : filter === "for-you"
+      ? `
+    // Institution filter: No institutionId provided, return empty
+    RETURN null AS id, null AS title, null AS content, null AS createdAt, null AS imageUrl,
+           null AS author, null AS authorType, null AS visibility, null AS clubName, null AS institutionName
+    LIMIT 0
+    `
+      : `
+    // Global: All announcements from all institutions/clubs (regardless of visibility)
     MATCH (a:Announcement)
     WHERE a.status IN ["approved", "published"]
-      AND a.createdAt >= datetime() - duration({days: 30})
     OPTIONAL MATCH (a)-[:BELONGS_TO]->(i)
     OPTIONAL MATCH (a)-[:BELONGS_TO_CLUB]->(c:Club)
+    OPTIONAL MATCH (c)-[:BELONGS_TO]->(clubInst)
     OPTIONAL MATCH (a)<-[:CREATED]-(creator:User)
-    WHERE a.visibility = "public" OR (i.userId = $institutionId OR i.institutionId = $institutionId)
     RETURN a.announcementId AS id,
            a.title AS title,
            a.content AS content,
            a.createdAt AS createdAt,
+           a.imageUrl AS imageUrl,
            COALESCE(creator.name, i.name, i.institutionName, "") AS author,
            CASE 
              WHEN c IS NOT NULL THEN "club"
              WHEN i IS NOT NULL THEN "institution"
              ELSE "institution"
            END AS authorType,
-           COALESCE(a.visibility, "institution") AS visibility,
-           c.name AS clubName
+           COALESCE(a.visibility, "public") AS visibility,
+           c.name AS clubName,
+           COALESCE(i.name, i.institutionName, clubInst.name, clubInst.institutionName, "") AS institutionName
     ORDER BY a.createdAt DESC
-    LIMIT $limit
+    LIMIT $announcementsLimit
     `;
+
+  console.log(
+    `[getNewsfeedItems] Announcements query: ${announcementsQuery.substring(
+      0,
+      200
+    )}...`
+  );
+  console.log(`[getNewsfeedItems] Announcements query params:`, {
+    userId,
+    institutionId,
+    announcementsLimit,
+  });
 
   const announcementsResult = await runQuery<{
     id: string;
     title: string;
     content?: string;
     createdAt: string;
+    imageUrl?: string;
     author?: string;
     authorType: string;
     visibility: string;
     clubName?: string;
-  }>(announcementsQuery, { userId, institutionId, limit });
+    institutionName?: string;
+  }>(announcementsQuery, { userId, institutionId, announcementsLimit });
+
+  console.log(
+    `[getNewsfeedItems] Announcements result count: ${announcementsResult.length}`
+  );
 
   // Combine and sort by creation date
   const items: NewsfeedItem[] = [
@@ -724,14 +857,17 @@ export async function getNewsfeedItems(
       type: "event" as const,
       id: e.id,
       title: e.title,
+      content: e.description,
       createdAt: e.startAt,
       visibility: e.visibility as "public" | "institution" | "restricted",
+      imageUrl: e.imageUrl,
       startAt: e.startAt,
       endAt: e.endAt,
       venue: e.venue,
       maxSlots: e.maxSlots,
       counts: e.counts,
       rsvpState: e.rsvpState as "going" | "interested" | null,
+      institutionName: e.institutionName,
     })),
     ...announcementsResult.map((a) => ({
       type: "announcement" as const,
@@ -739,17 +875,39 @@ export async function getNewsfeedItems(
       title: a.title,
       content: a.content,
       createdAt: a.createdAt,
+      imageUrl: a.imageUrl,
       author: a.author,
       authorType: a.authorType as "institution" | "club",
       visibility: a.visibility as "public" | "institution" | "restricted",
       clubName: a.clubName,
+      institutionName: a.institutionName,
     })),
   ];
 
   // Sort by creation date (newest first)
-  return items.sort((a, b) => {
+  const sortedItems = items.sort((a, b) => {
     const dateA = new Date(a.createdAt).getTime();
     const dateB = new Date(b.createdAt).getTime();
     return dateB - dateA;
   });
+
+  // Additional client-side filtering for "for-you" (Institution filter) to ensure only "institution" visibility posts
+  const filteredItems =
+    filter === "for-you"
+      ? sortedItems.filter((item) => {
+          // Only include posts with "institution" visibility
+          return item.visibility === "institution";
+        })
+      : sortedItems;
+
+  console.log(
+    `[getNewsfeedItems] Total items after combining and sorting: ${sortedItems.length}`
+  );
+  if (filter === "for-you") {
+    console.log(
+      `[getNewsfeedItems] Filtered items (institution visibility only): ${filteredItems.length}`
+    );
+  }
+
+  return filteredItems;
 }
