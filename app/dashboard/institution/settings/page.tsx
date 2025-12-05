@@ -8,7 +8,12 @@ import {
   getInstitutionPrograms,
 } from "@/lib/repos/institution";
 import { InstitutionSettingsPage } from "./_components/institution-settings-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Institution Settings",
+  description: "Institution Settings",
+};
 export const revalidate = 60; // ISR for stats
 
 export default async function InstitutionSettingsPageRoute({

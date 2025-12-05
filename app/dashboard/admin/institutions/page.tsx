@@ -5,7 +5,12 @@ import {
   getAdminInstitutionList,
 } from "@/lib/repos/institution";
 import { AdminInstitutionsPage } from "./_components/admin-institutions-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Institution Management",
+  description: "Super Admin Institution Management",
+};
 export const revalidate = 60; // ISR for stats
 
 export default async function AdminInstitutionsPageRoute({

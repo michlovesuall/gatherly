@@ -358,12 +358,25 @@ export default function EmployeeRegistrationForm({
             </Label>
             <Input
               id="userPhone"
-              type="number"
+              type="tel"
               placeholder="09xx-xxx-xxxx"
+              maxLength={11}
               required
               {...register("userPhone", {
                 required: "Phone number is required.",
+                pattern: {
+                  value: /^\d{11}$/,
+                  message: "Phone number must be exactly 11 digits.",
+                },
               })}
+              onInput={(e) => {
+                // Only allow numeric input
+                const target = e.target as HTMLInputElement;
+                const value = target.value.replace(/\D/g, "");
+                if (value.length <= 11) {
+                  target.value = value;
+                }
+              }}
             />
             <p className="text-red-500 text-xs">
               {errors.userPhone && <span>{errors.userPhone.message}</span>}

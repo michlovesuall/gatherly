@@ -3,6 +3,12 @@ import { getSession } from "@/lib/auth/session";
 import { getInstitutionSpecificStats } from "@/lib/repos/institution";
 import { InstitutionDashboard } from "./_components/institution-dashboard";
 import { runQuery } from "@/lib/neo4j";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Gatherly | Dashboard",
+  description: "Institution Dashboard",
+};
 
 export const revalidate = 60; // ISR for dashboard stats
 
@@ -46,4 +52,3 @@ export default async function InstitutionDashboardPage() {
     <InstitutionDashboard stats={stats} institutionName={institutionName} />
   );
 }
-

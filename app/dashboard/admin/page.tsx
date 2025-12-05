@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getAdminDashboardStats } from "@/lib/repos/institution";
 import { InstitutionDashboard } from "../_components/institution-dashboard";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Dashboard",
+  description: "Super Admin Dashboard",
+};
 export const revalidate = 60; // ISR for dashboard stats
 
 export default async function AdminDashboardPage() {
@@ -20,4 +25,3 @@ export default async function AdminDashboardPage() {
   const stats = await getAdminDashboardStats();
   return <InstitutionDashboard stats={stats} />;
 }
-

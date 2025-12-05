@@ -1,13 +1,26 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, Heart, MessageCircle, Bell, Building2, Globe, Lock } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Heart,
+  MessageCircle,
+  Bell,
+  Building2,
+  Globe,
+  Lock,
+  Loader2,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
 import type { NewsfeedItem } from "@/lib/repos/student";
 import { EmptyState } from "../../_components/empty-state";
+import { toast } from "sonner";
 
 export interface NewsfeedFeedProps {
   items: NewsfeedItem[];
@@ -15,19 +28,152 @@ export interface NewsfeedFeedProps {
   role?: "student" | "employee" | "institution" | "super_admin";
 }
 
-function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "employee" | "institution" | "super_admin" }) {
+function EventCard({
+  item,
+  role,
+  onRsvpChange,
+}: {
+  item: NewsfeedItem;
+  role?: "student" | "employee" | "institution" | "super_admin";
+  onRsvpChange?: () => void;
+}) {
+  // All hooks must be called before any early returns
+  const [rsvpState, setRsvpState] = useState<"going" | "interested" | null>(
+    item.type === "event" ? item.rsvpState || null : null
+  );
+  const [counts, setCounts] = useState(
+    item.type === "event"
+      ? item.counts || { going: 0, interested: 0, checkedIn: 0 }
+      : { going: 0, interested: 0, checkedIn: 0 }
+  );
+  const [loading, setLoading] = useState(false);
+  const [formattedStartDate, setFormattedStartDate] = useState<string>("");
+  const [formattedEndDate, setFormattedEndDate] = useState<string>("");
+
+  // Use useMemo to memoize dates to fix exhaustive-deps warning
+  const startAt = item.type === "event" ? item.startAt : null;
+  const endAt = item.type === "event" ? item.endAt : null;
+
+  const startDate = useMemo(
+    () => (startAt ? new Date(startAt) : null),
+    [startAt]
+  );
+  const endDate = useMemo(() => (endAt ? new Date(endAt) : null), [endAt]);
+
+  // Format dates on client side to avoid hydration mismatch
+  useEffect(() => {
+    if (startDate) {
+      const formatted = startDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      setFormattedStartDate(formatted);
+    }
+    if (endDate) {
+      const formatted = endDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      setFormattedEndDate(formatted);
+    }
+  }, [startDate, endDate]);
+
+  // Early return after all hooks
   if (item.type !== "event") return null;
 
-  const startDate = item.startAt ? new Date(item.startAt) : null;
-  const endDate = item.endAt ? new Date(item.endAt) : null;
+  const handleRsvp = async (newState: "going" | "interested" | null) => {
+    // If clicking the same state, remove RSVP (toggle off)
+    const finalState = rsvpState === newState ? null : newState;
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    // Optimistic update
+    const previousState = rsvpState;
+    const previousCounts = { ...counts };
+
+    setRsvpState(finalState);
+
+    // Update counts optimistically
+    if (previousState === "going" && finalState !== "going") {
+      setCounts((prev) => ({ ...prev, going: Math.max(0, prev.going - 1) }));
+    } else if (previousState !== "going" && finalState === "going") {
+      setCounts((prev) => ({ ...prev, going: prev.going + 1 }));
+      // If was interested, decrease interested count
+      if (previousState === "interested") {
+        setCounts((prev) => ({
+          ...prev,
+          interested: Math.max(0, prev.interested - 1),
+        }));
+      }
+    }
+
+    if (previousState === "interested" && finalState !== "interested") {
+      setCounts((prev) => ({
+        ...prev,
+        interested: Math.max(0, prev.interested - 1),
+      }));
+    } else if (previousState !== "interested" && finalState === "interested") {
+      setCounts((prev) => ({ ...prev, interested: prev.interested + 1 }));
+      // If was going, decrease going count
+      if (previousState === "going") {
+        setCounts((prev) => ({ ...prev, going: Math.max(0, prev.going - 1) }));
+      }
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/events/${item.id}/rsvp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ state: finalState }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to update RSVP");
+      }
+
+      // Update with server response
+      setRsvpState(data.state);
+      setCounts(data.counts);
+
+      // Show success message
+      if (finalState === "going") {
+        toast.success("You're going to this event!");
+      } else if (finalState === "interested") {
+        toast.success("Marked as interested");
+      } else {
+        // More specific messages based on previous state
+        if (previousState === "going") {
+          toast.success("You're no longer going to this event");
+        } else if (previousState === "interested") {
+          toast.success("You're no longer interested in this event");
+        } else {
+          toast.success("RSVP removed");
+        }
+      }
+
+      // Refresh My Events
+      if (onRsvpChange) {
+        onRsvpChange();
+      }
+    } catch (error) {
+      // Revert optimistic update
+      setRsvpState(previousState);
+      setCounts(previousCounts);
+
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to update RSVP";
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,18 +196,18 @@ function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "emp
             </Badge>
           </div>
           {/* RSVP Badge - Overlay on Image - Only show for Student and Employee */}
-          {item.rsvpState && role !== "institution" && role !== "super_admin" && (
+          {rsvpState && role !== "institution" && role !== "super_admin" && (
             <div className="absolute top-3 right-3">
               <Badge
                 variant={
-                  item.rsvpState === "going"
+                  rsvpState === "going"
                     ? "default"
-                    : item.rsvpState === "interested"
+                    : rsvpState === "interested"
                     ? "secondary"
                     : "outline"
                 }
               >
-                {item.rsvpState === "going" ? "Going" : "Interested"}
+                {rsvpState === "going" ? "Going" : "Interested"}
               </Badge>
             </div>
           )}
@@ -73,31 +219,39 @@ function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "emp
             {!item.imageUrl && (
               <>
                 <Calendar className="h-5 w-5 text-primary" />
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                <Badge
+                  variant="outline"
+                  className="bg-primary/10 text-primary border-primary/20"
+                >
                   Event
                 </Badge>
               </>
             )}
             <h3 className="text-lg font-semibold">{item.title}</h3>
           </div>
-          {!item.imageUrl && item.rsvpState && role !== "institution" && role !== "super_admin" && (
-            <Badge
-              variant={
-                item.rsvpState === "going"
-                  ? "default"
-                  : item.rsvpState === "interested"
-                  ? "secondary"
-                  : "outline"
-              }
-            >
-              {item.rsvpState === "going" ? "Going" : "Interested"}
-            </Badge>
-          )}
+          {!item.imageUrl &&
+            rsvpState &&
+            role !== "institution" &&
+            role !== "super_admin" && (
+              <Badge
+                variant={
+                  rsvpState === "going"
+                    ? "default"
+                    : rsvpState === "interested"
+                    ? "secondary"
+                    : "outline"
+                }
+              >
+                {rsvpState === "going" ? "Going" : "Interested"}
+              </Badge>
+            )}
         </div>
 
         {/* Description */}
         {item.content && (
-          <p className="text-sm text-muted-foreground line-clamp-3">{item.content}</p>
+          <p className="text-sm text-muted-foreground line-clamp-3">
+            {item.content}
+          </p>
         )}
 
         {/* Institution Name and Privacy */}
@@ -109,10 +263,7 @@ function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "emp
             </div>
           )}
           {/* Privacy Badge */}
-          <Badge
-            variant="outline"
-            className="text-xs"
-          >
+          <Badge variant="outline" className="text-xs">
             {item.visibility === "public" ? (
               <>
                 <Globe className="h-3 w-3 mr-1" />
@@ -141,8 +292,8 @@ function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "emp
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    {formatDate(startDate)}
-                    {endDate && ` - ${formatDate(endDate)}`}
+                    {formattedStartDate || "Loading..."}
+                    {endDate && formattedEndDate && ` - ${formattedEndDate}`}
                   </span>
                 </div>
                 {item.venue && (
@@ -154,31 +305,35 @@ function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "emp
               </div>
             )}
 
-            {item.counts && (
+            {counts && (
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    {item.counts.going} going
+                    {counts.going} going
                     {item.maxSlots && ` / ${item.maxSlots} max`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    {item.counts.interested} interested
+                    {counts.interested} interested
                   </span>
                 </div>
-                {item.counts.likes !== undefined && (
+                {counts.likes !== undefined && (
                   <div className="flex items-center gap-2">
                     <Heart className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{item.counts.likes}</span>
+                    <span className="text-muted-foreground">
+                      {counts.likes}
+                    </span>
                   </div>
                 )}
-                {item.counts.comments !== undefined && (
+                {counts.comments !== undefined && (
                   <div className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{item.counts.comments}</span>
+                    <span className="text-muted-foreground">
+                      {counts.comments}
+                    </span>
                   </div>
                 )}
               </div>
@@ -188,25 +343,48 @@ function EventCard({ item, role }: { item: NewsfeedItem; role?: "student" | "emp
           {/* Action Buttons - Vertically Arranged - Only show for Student and Employee */}
           {role !== "institution" && role !== "super_admin" && (
             <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <Button 
-                size="sm" 
-                variant={item.rsvpState === "going" ? "default" : "outline"}
-                className={item.rsvpState === "going" ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+              <Button
+                size="sm"
+                variant={rsvpState === "going" ? "default" : "outline"}
+                className={
+                  rsvpState === "going"
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : ""
+                }
+                onClick={() => handleRsvp("going")}
+                disabled={loading}
               >
+                {loading && rsvpState === "going" ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
                 Going
               </Button>
-              <Button 
-                size="sm" 
-                variant={item.rsvpState === "interested" ? "secondary" : "outline"}
-                className={item.rsvpState === "interested" ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
+              <Button
+                size="sm"
+                variant={rsvpState === "interested" ? "secondary" : "outline"}
+                className={
+                  rsvpState === "interested"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : ""
+                }
+                onClick={() => handleRsvp("interested")}
+                disabled={loading}
               >
+                {loading && rsvpState === "interested" ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
                 Interested
               </Button>
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 variant="outline"
                 className="bg-red-50 hover:bg-red-100 text-red-600 border-red-200 hover:border-red-300"
+                onClick={() => handleRsvp(null)}
+                disabled={loading}
               >
+                {loading && rsvpState === null ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
                 Not Interested
               </Button>
             </div>
@@ -251,7 +429,10 @@ function AnnouncementCard({ item }: { item: NewsfeedItem }) {
           {/* Club Name Badge - Overlay on Image */}
           {item.clubName && (
             <div className="absolute top-3 right-3">
-              <Badge variant="outline" className="bg-background/80 backdrop-blur-sm">
+              <Badge
+                variant="outline"
+                className="bg-background/80 backdrop-blur-sm"
+              >
                 <Building2 className="h-3 w-3 mr-1" />
                 {item.clubName}
               </Badge>
@@ -265,7 +446,10 @@ function AnnouncementCard({ item }: { item: NewsfeedItem }) {
             {!item.imageUrl && (
               <>
                 <Bell className="h-5 w-5 text-primary" />
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                <Badge
+                  variant="outline"
+                  className="bg-primary/10 text-primary border-primary/20"
+                >
                   Announcement
                 </Badge>
               </>
@@ -281,7 +465,9 @@ function AnnouncementCard({ item }: { item: NewsfeedItem }) {
         </div>
 
         {item.content && (
-          <p className="text-sm text-muted-foreground line-clamp-3">{item.content}</p>
+          <p className="text-sm text-muted-foreground line-clamp-3">
+            {item.content}
+          </p>
         )}
 
         {/* Institution Name and Privacy */}
@@ -293,10 +479,7 @@ function AnnouncementCard({ item }: { item: NewsfeedItem }) {
             </div>
           )}
           {/* Privacy Badge */}
-          <Badge
-            variant="outline"
-            className="text-xs"
-          >
+          <Badge variant="outline" className="text-xs">
             {item.visibility === "public" ? (
               <>
                 <Globe className="h-3 w-3 mr-1" />
@@ -317,9 +500,6 @@ function AnnouncementCard({ item }: { item: NewsfeedItem }) {
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {item.authorType === "club" ? "Club" : "Institution"}: {item.author || "Unknown"}
-          </span>
           <span>{formattedDate}</span>
         </div>
       </CardHeader>
@@ -348,9 +528,15 @@ export function NewsfeedFeed({
   items,
   loading = false,
   role,
-}: NewsfeedFeedProps) {
+  onRsvpChange,
+}: NewsfeedFeedProps & {
+  onRsvpChange?: (
+    eventId?: string,
+    previousState?: "going" | "interested"
+  ) => void;
+}) {
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4 pb-6 max-w-3xl min-w-3xl">
       {/* Feed Items */}
       <div className="space-y-4">
         {loading ? (
@@ -370,7 +556,11 @@ export function NewsfeedFeed({
           items.map((item) => (
             <div key={`${item.type}-${item.id}`}>
               {item.type === "event" ? (
-                <EventCard item={item} role={role} />
+                <EventCard
+                  item={item}
+                  role={role}
+                  onRsvpChange={onRsvpChange}
+                />
               ) : (
                 <AnnouncementCard item={item} />
               )}
@@ -381,4 +571,3 @@ export function NewsfeedFeed({
     </div>
   );
 }
-

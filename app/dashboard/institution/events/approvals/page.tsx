@@ -1,16 +1,16 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { getInstitutionPendingClubs } from "@/lib/repos/institution";
-import { InstitutionClubsApprovalsPage } from "./_components/institution-clubs-approvals-page";
+import { getInstitutionPendingEvents } from "@/lib/repos/institution";
+import { InstitutionEventsApprovalsPage } from "./_components/institution-events-approvals-page";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Gatherly | Club Approvals",
-  description: "Institution Club Approvals",
+  title: "Gatherly | Event Approvals",
+  description: "Institution Event Approvals",
 };
-export const revalidate = 60; // ISR for stats
+export const revalidate = 60;
 
-export default async function InstitutionClubsApprovalsPageRoute({
+export default async function InstitutionEventsApprovalsPageRoute({
   searchParams,
 }: {
   searchParams: Promise<{
@@ -36,27 +36,25 @@ export default async function InstitutionClubsApprovalsPageRoute({
   const params = await searchParams;
 
   try {
-    const clubs = await getInstitutionPendingClubs(
+    const events = await getInstitutionPendingEvents(
       institutionId,
       params.search
     );
 
     return (
-      <InstitutionClubsApprovalsPage
-        clubs={clubs}
+      <InstitutionEventsApprovalsPage
+        events={events}
         initialSearch={params.search || ""}
         institutionId={institutionId}
-        institutionName={session.name || "Institution"}
       />
     );
   } catch (error) {
-    console.error("Error fetching pending clubs:", error);
+    console.error("Error fetching pending events:", error);
     return (
-      <InstitutionClubsApprovalsPage
-        clubs={[]}
+      <InstitutionEventsApprovalsPage
+        events={[]}
         initialSearch={params.search || ""}
         institutionId={institutionId}
-        institutionName={session.name || "Institution"}
       />
     );
   }

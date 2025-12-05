@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getNewsfeedContext, getNewsfeedItems } from "@/lib/repos/student";
 import { NewsfeedPage } from "../../student/newsfeed/_components/newsfeed-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Newsfeed",
+  description: "Institution Newsfeed",
+};
 export const revalidate = 60; // ISR for feed data
 
 export default async function InstitutionNewsfeedPage({
@@ -23,18 +28,12 @@ export default async function InstitutionNewsfeedPage({
   const params = await searchParams;
   const filter = (params?.filter as "for-you" | "global") || "global";
 
-  // Fetch only necessary data for Institution role - use filter from URL
   const [context, feedItems] = await Promise.all([
     getNewsfeedContext(session.userId),
     getNewsfeedItems(session.userId, session.institutionId, filter),
   ]);
 
   return (
-    <NewsfeedPage
-      context={context}
-      feedItems={feedItems}
-      role="institution"
-    />
+    <NewsfeedPage context={context} feedItems={feedItems} role="institution" />
   );
 }
-

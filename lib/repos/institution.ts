@@ -210,7 +210,7 @@ export async function getAdminInstitutionList(
   if (status && status !== "all") {
     if (status === "approved") {
       // Include both "approved" and "active" statuses
-      filters.push(`(i.status = "approved" OR i.status = "active")`);
+      filters.push(`(i.status = 'approved' OR i.status = 'active')`);
     } else {
       filters.push(`coalesce(i.status, "pending") = $status`);
       params.status = status;
@@ -344,19 +344,19 @@ export async function getInstitutionPendingUsers(
   };
 
   // Filter by member status (pending)
-  filters.push(`coalesce(m.status, "pending") = "pending"`);
+  filters.push(`coalesce(m.status, 'pending') = 'pending'`);
 
   // Filter by user type
   if (userType && userType !== "all") {
     if (userType === "student") {
-      filters.push(`(u.platformRole IS NULL OR u.platformRole = "student")`);
+      filters.push(`(u.platformRole IS NULL OR u.platformRole = 'student')`);
     } else if (userType === "employee") {
-      filters.push(`u.platformRole = "employee"`);
+      filters.push(`u.platformRole = 'employee'`);
     }
   } else {
     // Include both students and employees
     filters.push(
-      `(u.platformRole IS NULL OR u.platformRole IN ["student", "employee"])`
+      `(u.platformRole IS NULL OR u.platformRole IN ['student', 'employee'])`
     );
   }
 
@@ -448,19 +448,19 @@ export async function getInstitutionApprovedUsers(
   };
 
   // Filter by member status (approved)
-  filters.push(`coalesce(m.status, "pending") = "approved"`);
+  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
 
   // Filter by user type
   if (userType && userType !== "all") {
     if (userType === "student") {
-      filters.push(`(u.platformRole IS NULL OR u.platformRole = "student")`);
+      filters.push(`(u.platformRole IS NULL OR u.platformRole = 'student')`);
     } else if (userType === "employee") {
-      filters.push(`u.platformRole = "employee"`);
+      filters.push(`u.platformRole = 'employee'`);
     }
   } else {
     // Include both students and employees
     filters.push(
-      `(u.platformRole IS NULL OR u.platformRole IN ["student", "employee"])`
+      `(u.platformRole IS NULL OR u.platformRole IN ['student', 'employee'])`
     );
   }
 
@@ -701,7 +701,7 @@ export async function getInstitutionApprovedEmployees(
   };
 
   // Filter by member status (approved) and exclude staff
-  filters.push(`coalesce(m.status, "pending") = "approved"`);
+  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
   // Exclude staff - check that there's no IS_STAFF_OF relationship
 
   // Filter by search query (name, email, or phone)
@@ -795,7 +795,7 @@ export async function getInstitutionStaffs(
   };
 
   // Filter by member status (approved) and has IS_STAFF_OF relationship
-  filters.push(`coalesce(m.status, "pending") = "approved"`);
+  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
 
   // Filter by search query (name, email, or phone)
   if (searchQuery && searchQuery.trim()) {
@@ -890,7 +890,7 @@ export async function getInstitutionApprovedClubs(
   };
 
   // Filter by club status (approved)
-  filters.push(`coalesce(c.status, "pending") = "approved"`);
+  filters.push(`coalesce(c.status, 'pending') = 'approved'`);
 
   // Note: Advisor status filtering is done after collecting advisors in the query
 
@@ -964,7 +964,7 @@ export async function getInstitutionEmployeesForClubAdvisor(
   };
 
   // Filter by member status (approved)
-  filters.push(`coalesce(m.status, "pending") = "approved"`);
+  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
 
   // Filter by search query (name, email, or phone)
   if (searchQuery && searchQuery.trim()) {
@@ -1027,7 +1027,7 @@ export async function getInstitutionPendingClubs(
   };
 
   // Filter by club status (pending)
-  filters.push(`coalesce(c.status, "pending") = "pending"`);
+  filters.push(`coalesce(c.status, 'pending') = 'pending'`);
 
   // Filter by search query (acronym, club name, or email)
   if (searchQuery && searchQuery.trim()) {
@@ -1471,6 +1471,551 @@ export async function getAllInstitutionPrograms(institutionId: string): Promise<
       coalesce(c.collegeId, "") AS collegeId,
       coalesce(c.name, "") AS collegeName
     ORDER BY p.name ASC
+    `,
+    { institutionId }
+  );
+
+  return result;
+}
+
+// ==================== EVENTS ====================
+
+export interface InstitutionEventListItem {
+  eventId: string;
+  title: string;
+  description: string;
+  startAt: string;
+  endAt?: string;
+  venue?: string;
+  link?: string;
+  maxSlots?: number;
+  visibility: "public" | "institution" | "restricted";
+  status: "draft" | "pending" | "approved" | "published" | "rejected" | "hidden";
+  imageUrl?: string;
+  posterId: string;
+  posterName: string;
+  clubId?: string;
+  clubName?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags?: string[];
+}
+
+export interface InstitutionEventStats {
+  total: number;
+  published: number;
+  pending: number;
+  rejected: number;
+  draft: number;
+}
+
+export interface InstitutionEventDetails extends InstitutionEventListItem {
+  goingCount: number;
+  interestedCount: number;
+  checkedInCount: number;
+}
+
+/**
+ * Get all events for an institution with filters
+ * Includes events directly from institution and from clubs
+ */
+export async function getInstitutionEvents(
+  institutionId: string,
+  filters?: {
+    status?: string;
+    search?: string;
+    sortBy?: "createdAt" | "startAt" | "status";
+    sortOrder?: "asc" | "desc";
+    page?: number;
+    pageSize?: number;
+  }
+): Promise<{ events: InstitutionEventListItem[]; total: number }> {
+  const {
+    status = "all",
+    search,
+    sortBy = "createdAt",
+    sortOrder = "desc",
+    page = 1,
+    pageSize = 20,
+  } = filters || {};
+
+  const filtersList: string[] = [];
+  const params: Record<string, unknown> = {
+    institutionId,
+    skip: (page - 1) * pageSize,
+    limit: pageSize,
+  };
+
+  // Status filter
+  if (status && status !== "all") {
+    if (status === "approved") {
+      filtersList.push(`e.status IN ["approved", "published"]`);
+    } else {
+      filtersList.push(`e.status = $status`);
+      params.status = status;
+    }
+  } else {
+    // Exclude deleted/hidden events by default
+    filtersList.push(`e.status <> "deleted"`);
+  }
+
+  // Search filter
+  if (search && search.trim()) {
+    filtersList.push(`toLower(e.title) CONTAINS $search`);
+    params.search = search.trim().toLowerCase();
+  }
+
+  const whereClause =
+    filtersList.length > 0 ? `WHERE ${filtersList.join(" AND ")}` : "";
+
+  // Sort order
+  const orderBy =
+    sortBy === "startAt"
+      ? `e.startAt ${sortOrder.toUpperCase()}`
+      : sortBy === "status"
+      ? `e.status ${sortOrder.toUpperCase()}`
+      : `e.createdAt ${sortOrder.toUpperCase()}`;
+
+  // Get total count
+  const countResult = await runQuery<{ count: number }>(
+    `
+    MATCH (i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+    OPTIONAL MATCH (e:Event)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c:Club)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c)-[:HOSTS]->(e2:Event)
+    WITH i, collect(DISTINCT e) + collect(DISTINCT e2) AS allEvents
+    UNWIND allEvents AS e
+    WHERE e IS NOT NULL
+    ${whereClause}
+    RETURN COUNT(DISTINCT e) AS count
+    `,
+    params
+  );
+
+  const total = countResult[0]?.count || 0;
+
+  // Get events
+  const result = await runQuery<{
+    eventId: string;
+    title: string;
+    description: string;
+    startAt: string;
+    endAt?: string;
+    venue?: string;
+    link?: string;
+    maxSlots?: number;
+    visibility: string;
+    status: string;
+    imageUrl?: string;
+    posterId: string;
+    posterName: string;
+    clubId?: string;
+    clubName?: string;
+    createdAt: string;
+    updatedAt: string;
+    tags?: string[];
+  }>(
+    `
+    MATCH (i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+    
+    // Get events directly from institution
+    OPTIONAL MATCH (e1:Event)-[:BELONGS_TO]->(i)
+    
+    // Get events from clubs
+    OPTIONAL MATCH (c:Club)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c)-[:HOSTS]->(e2:Event)
+    
+    // Combine both types
+    WITH i, collect(DISTINCT e1) AS directEvents, collect(DISTINCT e2) AS clubEvents
+    WITH i, directEvents + clubEvents AS allEvents
+    UNWIND allEvents AS e
+    WHERE e IS NOT NULL
+    
+    // Get club info if event is from a club
+    OPTIONAL MATCH (c2:Club)-[:HOSTS]->(e)
+    OPTIONAL MATCH (c2)-[:BELONGS_TO]->(i)
+    
+    // Get tags
+    OPTIONAL MATCH (e)-[:HAS_TAG]->(t:Tag)
+    
+    ${whereClause}
+    
+    WITH e, c2, collect(DISTINCT t.name) AS tagNames
+    RETURN 
+      e.eventId AS eventId,
+      e.title AS title,
+      e.description AS description,
+      e.startAt AS startAt,
+      e.endAt AS endAt,
+      e.venue AS venue,
+      e.link AS link,
+      e.maxSlots AS maxSlots,
+      coalesce(e.visibility, "public") AS visibility,
+      coalesce(e.status, "pending") AS status,
+      e.imageUrl AS imageUrl,
+      e.posterId AS posterId,
+      coalesce(e.posterName, "") AS posterName,
+      c2.clubId AS clubId,
+      coalesce(c2.name, c2.clubName, "") AS clubName,
+      e.createdAt AS createdAt,
+      e.updatedAt AS updatedAt,
+      tagNames AS tags
+    ORDER BY ${orderBy}
+    SKIP $skip
+    LIMIT $limit
+    `,
+    params
+  );
+
+  return {
+    events: result.map((r) => ({
+      eventId: r.eventId,
+      title: r.title,
+      description: r.description,
+      startAt: r.startAt,
+      endAt: r.endAt,
+      venue: r.venue,
+      link: r.link,
+      maxSlots: r.maxSlots,
+      visibility: r.visibility as "public" | "institution" | "restricted",
+      status: r.status as
+        | "draft"
+        | "pending"
+        | "approved"
+        | "published"
+        | "rejected"
+        | "hidden",
+      imageUrl: r.imageUrl,
+      posterId: r.posterId,
+      posterName: r.posterName,
+      clubId: r.clubId,
+      clubName: r.clubName,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      tags: r.tags?.filter((t) => t) || [],
+    })),
+    total,
+  };
+}
+
+/**
+ * Get pending events for approvals
+ */
+export async function getInstitutionPendingEvents(
+  institutionId: string,
+  search?: string
+): Promise<InstitutionEventListItem[]> {
+  const filters: string[] = [];
+  const params: Record<string, unknown> = {
+    institutionId,
+  };
+
+  filters.push(`e IS NOT NULL`);
+  filters.push(`e.status = 'pending'`);
+
+  if (search && search.trim()) {
+    filters.push(`toLower(e.title) CONTAINS $search`);
+    params.search = search.trim().toLowerCase();
+  }
+
+  const whereClause = `WHERE ${filters.join(" AND ")}`;
+
+  const result = await runQuery<{
+    eventId: string;
+    title: string;
+    description: string;
+    startAt: string;
+    endAt?: string;
+    venue?: string;
+    link?: string;
+    maxSlots?: number;
+    visibility: string;
+    status: string;
+    imageUrl?: string;
+    posterId: string;
+    posterName: string;
+    clubId?: string;
+    clubName?: string;
+    createdAt: string;
+    updatedAt: string;
+    tags?: string[];
+  }>(
+    `
+    MATCH (i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, '') = 'institution' OR i:Institution)
+    
+    OPTIONAL MATCH (e1:Event)-[:BELONGS_TO]->(i)
+    
+    OPTIONAL MATCH (c:Club)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c)-[:HOSTS]->(e2:Event)
+    
+    WITH i, collect(DISTINCT e1) AS directEvents, collect(DISTINCT e2) AS clubEvents
+    WITH i, directEvents + clubEvents AS allEvents
+    UNWIND allEvents AS e
+    
+    WITH e, i
+    ${whereClause}
+    
+    OPTIONAL MATCH (c2:Club)-[:HOSTS]->(e)
+    OPTIONAL MATCH (c2)-[:BELONGS_TO]->(i)
+    
+    OPTIONAL MATCH (e)-[:HAS_TAG]->(t:Tag)
+    
+    WITH e, c2, collect(DISTINCT t.name) AS tagNames
+    RETURN 
+      e.eventId AS eventId,
+      e.title AS title,
+      e.description AS description,
+      e.startAt AS startAt,
+      e.endAt AS endAt,
+      e.venue AS venue,
+      e.link AS link,
+      e.maxSlots AS maxSlots,
+      coalesce(e.visibility, 'public') AS visibility,
+      coalesce(e.status, 'pending') AS status,
+      e.imageUrl AS imageUrl,
+      e.posterId AS posterId,
+      coalesce(e.posterName, '') AS posterName,
+      c2.clubId AS clubId,
+      coalesce(c2.name, c2.clubName, '') AS clubName,
+      e.createdAt AS createdAt,
+      e.updatedAt AS updatedAt,
+      tagNames AS tags
+    ORDER BY e.createdAt DESC
+    `,
+    params
+  );
+
+  return result.map((r) => ({
+    eventId: r.eventId,
+    title: r.title,
+    description: r.description,
+    startAt: r.startAt,
+    endAt: r.endAt,
+    venue: r.venue,
+    link: r.link,
+    maxSlots: r.maxSlots,
+    visibility: r.visibility as "public" | "institution" | "restricted",
+    status: r.status as
+      | "draft"
+      | "pending"
+      | "approved"
+      | "published"
+      | "rejected"
+      | "hidden",
+    imageUrl: r.imageUrl,
+    posterId: r.posterId,
+    posterName: r.posterName,
+    clubId: r.clubId,
+    clubName: r.clubName,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    tags: r.tags?.filter((t) => t) || [],
+  }));
+}
+
+/**
+ * Get event statistics for institution
+ */
+export async function getInstitutionEventStats(
+  institutionId: string
+): Promise<InstitutionEventStats> {
+  const result = await runQuery<{
+    total: number;
+    published: number;
+    pending: number;
+    rejected: number;
+    draft: number;
+  }>(
+    `
+    MATCH (i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+    
+    // Get events directly from institution
+    OPTIONAL MATCH (e1:Event)-[:BELONGS_TO]->(i)
+    
+    // Get events from clubs
+    OPTIONAL MATCH (c:Club)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c)-[:HOSTS]->(e2:Event)
+    
+    // Combine both types
+    WITH i, collect(DISTINCT e1) AS directEvents, collect(DISTINCT e2) AS clubEvents
+    WITH i, directEvents + clubEvents AS allEvents
+    UNWIND allEvents AS e
+    WHERE e IS NOT NULL AND e.status <> "deleted"
+    
+    WITH 
+      COUNT(DISTINCT e) AS total,
+      COUNT(CASE WHEN e.status IN ["published", "approved"] THEN 1 END) AS published,
+      COUNT(CASE WHEN e.status = "pending" THEN 1 END) AS pending,
+      COUNT(CASE WHEN e.status = "rejected" THEN 1 END) AS rejected,
+      COUNT(CASE WHEN e.status = "draft" THEN 1 END) AS draft
+    RETURN total, published, pending, rejected, draft
+    `,
+    { institutionId }
+  );
+
+  const stats = result[0];
+  return {
+    total: stats?.total || 0,
+    published: stats?.published || 0,
+    pending: stats?.pending || 0,
+    rejected: stats?.rejected || 0,
+    draft: stats?.draft || 0,
+  };
+}
+
+/**
+ * Get single event details with full information
+ */
+export async function getInstitutionEventDetails(
+  eventId: string,
+  institutionId: string
+): Promise<InstitutionEventDetails | null> {
+  const result = await runQuery<{
+    eventId: string;
+    title: string;
+    description: string;
+    startAt: string;
+    endAt?: string;
+    venue?: string;
+    link?: string;
+    maxSlots?: number;
+    visibility: string;
+    status: string;
+    imageUrl?: string;
+    posterId: string;
+    posterName: string;
+    clubId?: string;
+    clubName?: string;
+    createdAt: string;
+    updatedAt: string;
+    tags?: string[];
+    goingCount: number;
+    interestedCount: number;
+    checkedInCount: number;
+  }>(
+    `
+    MATCH (i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+    
+    // Find event - either directly from institution or from a club
+    OPTIONAL MATCH (e1:Event {eventId: $eventId})-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c:Club)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c)-[:HOSTS]->(e2:Event {eventId: $eventId})
+    
+    WITH i, coalesce(e1, e2) AS e
+    WHERE e IS NOT NULL
+    
+    // Get club info if event is from a club
+    OPTIONAL MATCH (c2:Club)-[:HOSTS]->(e)
+    OPTIONAL MATCH (c2)-[:BELONGS_TO]->(i)
+    
+    // Get tags
+    OPTIONAL MATCH (e)-[:HAS_TAG]->(t:Tag)
+    
+    // Get RSVP counts
+    OPTIONAL MATCH (goingUser:User)-[:RSVP]->(goingRSVP:RSVP {state: "going"})-[:FOR]->(e)
+    OPTIONAL MATCH (interestedUser:User)-[:RSVP]->(interestedRSVP:RSVP {state: "interested"})-[:FOR]->(e)
+    OPTIONAL MATCH (checkedInUser:User)-[:CHECKED_IN]->(e)
+    
+    WITH e, c2, 
+      collect(DISTINCT t.name) AS tagNames,
+      COUNT(DISTINCT goingUser) AS goingCount,
+      COUNT(DISTINCT interestedUser) AS interestedCount,
+      COUNT(DISTINCT checkedInUser) AS checkedInCount
+    
+    RETURN 
+      e.eventId AS eventId,
+      e.title AS title,
+      e.description AS description,
+      e.startAt AS startAt,
+      e.endAt AS endAt,
+      e.venue AS venue,
+      e.link AS link,
+      e.maxSlots AS maxSlots,
+      coalesce(e.visibility, "public") AS visibility,
+      coalesce(e.status, "pending") AS status,
+      e.imageUrl AS imageUrl,
+      e.posterId AS posterId,
+      coalesce(e.posterName, "") AS posterName,
+      c2.clubId AS clubId,
+      coalesce(c2.name, c2.clubName, "") AS clubName,
+      e.createdAt AS createdAt,
+      e.updatedAt AS updatedAt,
+      tagNames AS tags,
+      goingCount,
+      interestedCount,
+      checkedInCount
+    LIMIT 1
+    `,
+    { eventId, institutionId }
+  );
+
+  if (!result.length) {
+    return null;
+  }
+
+  const r = result[0];
+  return {
+    eventId: r.eventId,
+    title: r.title,
+    description: r.description,
+    startAt: r.startAt,
+    endAt: r.endAt,
+    venue: r.venue,
+    link: r.link,
+    maxSlots: r.maxSlots,
+    visibility: r.visibility as "public" | "institution" | "restricted",
+    status: r.status as
+      | "draft"
+      | "pending"
+      | "approved"
+      | "published"
+      | "rejected"
+      | "hidden",
+    imageUrl: r.imageUrl,
+    posterId: r.posterId,
+    posterName: r.posterName,
+    clubId: r.clubId,
+    clubName: r.clubName,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    tags: r.tags?.filter((t) => t) || [],
+    goingCount: r.goingCount || 0,
+    interestedCount: r.interestedCount || 0,
+    checkedInCount: r.checkedInCount || 0,
+  };
+}
+
+/**
+ * Get all clubs for an institution (for dropdown)
+ */
+export async function getInstitutionClubsForDropdown(
+  institutionId: string
+): Promise<Array<{ clubId: string; name: string; acronym?: string }>> {
+  const result = await runQuery<{
+    clubId: string;
+    name: string;
+    acronym?: string;
+  }>(
+    `
+    MATCH (c:Club)-[:BELONGS_TO]->(i)
+    WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+      AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+      AND coalesce(c.status, "pending") = "approved"
+    RETURN 
+      c.clubId AS clubId,
+      coalesce(c.name, c.clubName, "") AS name,
+      coalesce(c.acronym, c.clubAcr) AS acronym
+    ORDER BY c.name ASC, c.clubName ASC
     `,
     { institutionId }
   );

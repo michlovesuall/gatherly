@@ -949,9 +949,22 @@ export function AdminUsersPage({
                         id="student-phone"
                         type="tel"
                         placeholder="09xx-xxx-xxxx"
+                        maxLength={11}
                         {...studentForm.register("userPhone", {
                           required: "Phone number is required.",
+                          pattern: {
+                            value: /^\d{11}$/,
+                            message: "Phone number must be exactly 11 digits.",
+                          },
                         })}
+                        onInput={(e) => {
+                          // Only allow numeric input
+                          const target = e.target as HTMLInputElement;
+                          const value = target.value.replace(/\D/g, "");
+                          if (value.length <= 11) {
+                            target.value = value;
+                          }
+                        }}
                       />
                       {studentForm.formState.errors.userPhone && (
                         <p className="text-xs text-red-600">
@@ -1264,9 +1277,22 @@ export function AdminUsersPage({
                         id="employee-phone"
                         type="tel"
                         placeholder="09xx-xxx-xxxx"
+                        maxLength={11}
                         {...employeeForm.register("userPhone", {
                           required: "Phone number is required.",
+                          pattern: {
+                            value: /^\d{11}$/,
+                            message: "Phone number must be exactly 11 digits.",
+                          },
                         })}
+                        onInput={(e) => {
+                          // Only allow numeric input
+                          const target = e.target as HTMLInputElement;
+                          const value = target.value.replace(/\D/g, "");
+                          if (value.length <= 11) {
+                            target.value = value;
+                          }
+                        }}
                       />
                       {employeeForm.formState.errors.userPhone && (
                         <p className="text-xs text-red-600">

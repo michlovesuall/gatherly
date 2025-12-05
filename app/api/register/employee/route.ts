@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { runQuery } from "@/lib/neo4j";
+import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/validation";
 
 interface EmployeeRequest {
   name: string;
@@ -34,13 +35,113 @@ export async function POST(req: Request) {
       );
     }
 
-    const dup = await runQuery(
-      "MATCH (u:User) WHERE u.email=$email OR u.idNumber=$idNumber RETURN u LIMIT 1",
-      { email: body.email, idNumber: body.idNumber }
-    );
-    if (dup.length) {
+    // Validate phone number format (exactly 11 digits)
+    if (!body.phone || !isValidPhoneNumber(body.phone)) {
       return NextResponse.json(
-        { ok: false, error: "User with that email or ID already exists" },
+        { ok: false, error: "Phone number must be exactly 11 digits" },
+        { status: 400 }
+      );
+    }
+
+    // Normalize phone number (remove non-numeric characters)
+    const normalizedPhone = normalizePhoneNumber(body.phone);
+
+    // Check global phone number uniqueness
+    const phoneCheckCypher = `
+      MATCH (u:User)
+      WHERE u.phone = $phone
+      RETURN u LIMIT 1
+    `;
+    const phoneDupRows = await runQuery<{ u?: Record<string, unknown> }>(
+      phoneCheckCypher,
+      { phone: normalizedPhone }
+    );
+    if (phoneDupRows.length) {
+      return NextResponse.json(
+        { ok: false, error: "This phone number is already registered" },
+        { status: 409 }
+      );
+    }
+
+    // Match the institution Node (supports new userId and legacy institutionId)
+    const matchInstitutionCyper = body.institutionId
+      ? `MATCH (i)
+         WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+         RETURN i LIMIT 1`
+      : `MATCH (i)
+         WHERE i.slug = $institutionSlug
+           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
+         RETURN i LIMIT 1`;
+
+    const instParams = body.institutionId
+      ? { institutionId: body.institutionId }
+      : { institutionSlug: body.institutionSlug };
+    const instRows = await runQuery<{ i?: Record<string, unknown> }>(
+      matchInstitutionCyper,
+      instParams
+    );
+
+    if (!instRows.length) {
+      return NextResponse.json(
+        { ok: false, error: "Selected institution not found" },
+        { status: 404 }
+      );
+    }
+
+    const institution = instRows[0].i as { userId?: string; institutionId?: string };
+
+    // Check email uniqueness within the institution
+    const emailInstitutionCheckCypher = `
+      MATCH (u:User)-[:MEMBER_OF]->(i)
+      WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
+        AND u.email = $email
+      RETURN u LIMIT 1
+    `;
+    const emailInstDupRows = await runQuery<{ u?: Record<string, unknown> }>(
+      emailInstitutionCheckCypher,
+      {
+        email: body.email,
+        institutionId: institution.userId || institution.institutionId,
+      }
+    );
+    if (emailInstDupRows.length) {
+      return NextResponse.json(
+        { ok: false, error: "This email is already registered in this institution" },
+        { status: 409 }
+      );
+    }
+
+    // Check global email reuse prevention (even if user is deleted)
+    const emailGlobalCheckCypher = `
+      MATCH (u:User)
+      WHERE u.email = $email
+      RETURN u LIMIT 1
+    `;
+    const emailGlobalDupRows = await runQuery<{ u?: Record<string, unknown> }>(
+      emailGlobalCheckCypher,
+      { email: body.email }
+    );
+    if (emailGlobalDupRows.length) {
+      return NextResponse.json(
+        { ok: false, error: "This email has been used and cannot be reused" },
+        { status: 409 }
+      );
+    }
+
+    // Check for existing id number
+    const idNumberCheckCypher = `
+      MATCH (u:User)
+      WHERE u.idNumber = $idNumber
+      RETURN u LIMIT 1
+    `;
+    const idNumberDupRows = await runQuery<{ u?: Record<string, unknown> }>(
+      idNumberCheckCypher,
+      { idNumber: body.idNumber }
+    );
+    if (idNumberDupRows.length) {
+      return NextResponse.json(
+        { ok: false, error: "Employee ID already exists" },
         { status: 409 }
       );
     }
@@ -121,7 +222,7 @@ export async function POST(req: Request) {
       name: body.name,
       idNumber: body.idNumber,
       email: body.email,
-      phone: body.phone,
+      phone: normalizedPhone,
       hashedPassword,
       avatarUrl: body.avatarUrl ?? null,
       platformRole: "employee",

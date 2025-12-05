@@ -6,7 +6,12 @@ import {
   getInstitutionStaffs,
 } from "@/lib/repos/institution";
 import { InstitutionStaffsPage } from "./_components/institution-staffs-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Staffs",
+  description: "Institution Staffs Management",
+};
 export const revalidate = 60; // ISR for stats
 
 export default async function InstitutionStaffsPageRoute({
@@ -46,8 +51,12 @@ export default async function InstitutionStaffsPageRoute({
   // Parse pagination parameters
   const employeesPage = parseInt(params.employeesPage || "1", 10);
   const employeesPageSize = parseInt(params.employeesPageSize || "10", 10);
-  const employeesSortBy = (params.employeesSortBy || "name") as "name" | "email";
-  const employeesSortOrder = (params.employeesSortOrder || "asc") as "asc" | "desc";
+  const employeesSortBy = (params.employeesSortBy || "name") as
+    | "name"
+    | "email";
+  const employeesSortOrder = (params.employeesSortOrder || "asc") as
+    | "asc"
+    | "desc";
 
   const staffsPage = parseInt(params.staffsPage || "1", 10);
   const staffsPageSize = parseInt(params.staffsPageSize || "10", 10);
@@ -95,4 +104,3 @@ export default async function InstitutionStaffsPageRoute({
     />
   );
 }
-

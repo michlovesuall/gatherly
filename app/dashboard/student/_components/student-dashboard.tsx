@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { DashboardHeader } from "./dashboard-header";
 import { QuickActions } from "./quick-actions";
 import { RecommendedEvents } from "./recommended-events";
@@ -39,7 +40,7 @@ export interface StudentDashboardProps {
 export function StudentDashboard({
   context,
   feed,
-  myEvents,
+  myEvents: initialMyEvents,
   certificates,
   clubs,
   clubAnnouncements,
@@ -48,6 +49,27 @@ export function StudentDashboard({
   stats,
   isClubMember,
 }: StudentDashboardProps) {
+  const [myEvents, setMyEvents] = useState(initialMyEvents);
+
+  // Refresh My Events after RSVP change
+  // Accepts optional eventId and previousState for future use
+  const handleRsvpChange = async (
+    eventId?: string,
+    previousState?: "going" | "interested"
+  ) => {
+    try {
+      const response = await fetch("/api/student/my-events");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok && data.events) {
+          setMyEvents(data.events);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh My Events:", error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -77,7 +99,11 @@ export function StudentDashboard({
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <MyEvents going={myEvents.going} interested={myEvents.interested} />
+          <MyEvents 
+            going={myEvents.going} 
+            interested={myEvents.interested}
+            onRsvpChange={handleRsvpChange}
+          />
 
           {/* Club Announcements (for club members only) */}
           {isClubMember && <ClubAnnouncements items={clubAnnouncements} />}

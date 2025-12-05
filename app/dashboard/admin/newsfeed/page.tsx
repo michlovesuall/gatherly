@@ -2,8 +2,13 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getNewsfeedContext, getNewsfeedItems } from "@/lib/repos/student";
 import { NewsfeedPage } from "../../student/newsfeed/_components/newsfeed-page";
+import type { Metadata } from "next";
 
-export const revalidate = 60; // ISR for feed data
+export const metadata: Metadata = {
+  title: "Gatherly | Newsfeed",
+  description: "Super Admin's Dashboard",
+};
+export const revalidate = 60;
 
 export default async function AdminNewsfeedPage({
   searchParams,
@@ -30,11 +35,6 @@ export default async function AdminNewsfeedPage({
   ]);
 
   return (
-    <NewsfeedPage
-      context={context}
-      feedItems={feedItems}
-      role="super_admin"
-    />
+    <NewsfeedPage context={context} feedItems={feedItems} role="super_admin" />
   );
 }
-

@@ -7,6 +7,13 @@ import {
 } from "@/lib/repos/institution";
 import { runQuery } from "@/lib/neo4j";
 import { InstitutionUsersPage } from "./_components/institution-users-page";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Gatherly | Users",
+  description: "Institution Users Directory",
+};
+
 
 export const revalidate = 60; // ISR for stats
 

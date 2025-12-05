@@ -6,7 +6,12 @@ import {
   getApprovedInstitutionOptions,
 } from "@/lib/repos/admin-clubs";
 import { AdminClubsPage } from "./_components/admin-clubs-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Clubs Management",
+  description: "Super Admin Clubs Management",
+};
 export const revalidate = 60; // ISR for stats
 
 export default async function AdminClubsPageRoute({
@@ -32,11 +37,7 @@ export default async function AdminClubsPageRoute({
 
   const [stats, clubs, institutions] = await Promise.all([
     getAdminClubStats(),
-    getAdminClubList(
-      params.status || "all",
-      params.search,
-      params.institution
-    ),
+    getAdminClubList(params.status || "all", params.search, params.institution),
     getApprovedInstitutionOptions(),
   ]);
 

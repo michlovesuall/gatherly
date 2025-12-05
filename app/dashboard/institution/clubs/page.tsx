@@ -5,7 +5,12 @@ import {
   getInstitutionApprovedClubs,
 } from "@/lib/repos/institution";
 import { InstitutionAdvisorsPage } from "./_components/institution-advisors-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Clubs",
+  description: "Institution Clubs Management",
+};
 export const revalidate = 60; // ISR for stats
 
 export default async function InstitutionClubsPageRoute({

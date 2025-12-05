@@ -3,27 +3,82 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Calendar, MapPin, X } from "lucide-react";
+import { Calendar, MapPin, X, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EventItem } from "@/lib/repos/student";
 import { EmptyState } from "../../_components/empty-state";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export interface MyEventsCardProps {
   going: EventItem[];
   interested: EventItem[];
   isLoading?: boolean;
+  onRsvpChange?: (eventId?: string, previousState?: "going" | "interested") => void;
 }
 
-function EventListItem({ event }: { event: EventItem }) {
-  const startDate = new Date(event.startAt);
+// Date formatting function - called only on client side to avoid hydration mismatch
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+function EventListItem({ 
+  event, 
+  onCancel,
+  currentState
+}: { 
+  event: EventItem;
+  onCancel?: (eventId: string, state: "going" | "interested") => void;
+  currentState: "going" | "interested";
+}) {
+  const [formattedDate, setFormattedDate] = useState<string>("");
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  useEffect(() => {
+    // Format date on client side to avoid hydration mismatch
+    const startDate = new Date(event.startAt);
+    setFormattedDate(formatDate(startDate));
+  }, [event.startAt]);
+
+  const handleCancel = async () => {
+    if (!onCancel) return;
+    
+    setIsRemoving(true);
+    try {
+      const response = await fetch(`/api/events/${event.id}/rsvp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ state: null }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to remove RSVP");
+      }
+
+      // Show specific toast message based on state
+      if (currentState === "going") {
+        toast.success("You're no longer going to this event");
+      } else {
+        toast.success("You're no longer interested in this event");
+      }
+
+      // Pass eventId and state to onCancel
+      onCancel(event.id, currentState);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to remove RSVP";
+      toast.error(errorMessage);
+    } finally {
+      setIsRemoving(false);
+    }
   };
 
   return (
@@ -34,7 +89,7 @@ function EventListItem({ event }: { event: EventItem }) {
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              <span>{formatDate(startDate)}</span>
+              <span>{formattedDate || "Loading..."}</span>
             </div>
             {event.venue && (
               <div className="flex items-center gap-1">
@@ -47,6 +102,20 @@ function EventListItem({ event }: { event: EventItem }) {
         <div className="flex items-start gap-2">
           <Button variant="ghost" size="sm" className="h-8 px-2">
             View
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={handleCancel}
+            disabled={isRemoving}
+            title="Remove RSVP"
+          >
+            {isRemoving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <X className="h-3 w-3" />
+            )}
           </Button>
         </div>
       </div>
@@ -66,104 +135,15 @@ function EventListItemSkeleton() {
   );
 }
 
-// Static example events for demonstration
-const staticGoingEvents: EventItem[] = [
-  {
-    id: "static-going-1",
-    title: "Tech Innovation Workshop",
-    startAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days from now
-    endAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(),
-    venue: "Computer Science Building, Room 301",
-    visibility: "institution",
-    counts: {
-      going: 32,
-      interested: 15,
-      checkedIn: 0,
-    },
-    rsvpState: "going",
-  },
-  {
-    id: "static-going-2",
-    title: "Annual Science Fair 2024",
-    startAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
-    endAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000).toISOString(),
-    venue: "Main Auditorium",
-    visibility: "public",
-    counts: {
-      going: 45,
-      interested: 23,
-      checkedIn: 0,
-    },
-    rsvpState: "going",
-  },
-  {
-    id: "static-going-3",
-    title: "Student Leadership Conference",
-    startAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-    endAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000).toISOString(),
-    venue: "Student Center, Hall A",
-    visibility: "institution",
-    counts: {
-      going: 67,
-      interested: 34,
-      checkedIn: 0,
-    },
-    rsvpState: "going",
-  },
-];
-
-const staticInterestedEvents: EventItem[] = [
-  {
-    id: "static-interested-1",
-    title: "Career Development Seminar",
-    startAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
-    venue: "Conference Hall",
-    visibility: "public",
-    counts: {
-      going: 78,
-      interested: 42,
-      checkedIn: 0,
-    },
-    rsvpState: "interested",
-  },
-  {
-    id: "static-interested-2",
-    title: "Art Exhibition Opening",
-    startAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString(), // 12 days from now
-    endAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
-    venue: "Art Gallery",
-    visibility: "institution",
-    counts: {
-      going: 28,
-      interested: 19,
-      checkedIn: 0,
-    },
-    rsvpState: "interested",
-  },
-  {
-    id: "static-interested-3",
-    title: "Sports Day 2024",
-    startAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(), // 20 days from now
-    endAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000).toISOString(),
-    venue: "Sports Complex",
-    visibility: "public",
-    counts: {
-      going: 156,
-      interested: 89,
-      checkedIn: 0,
-    },
-    rsvpState: "interested",
-  },
-];
-
 export function MyEventsCard({
   going,
   interested,
   isLoading = false,
+  onRsvpChange,
 }: MyEventsCardProps) {
-  // Use static examples if no actual events
-  const displayGoing = going.length > 0 ? going : staticGoingEvents;
-  const displayInterested = interested.length > 0 ? interested : staticInterestedEvents;
+  // Only use actual events, no static examples to avoid hydration issues
+  const displayGoing = going;
+  const displayInterested = interested;
 
   if (isLoading) {
     return (
@@ -205,7 +185,12 @@ export function MyEventsCard({
               />
             ) : (
               displayGoing.map((event) => (
-                <EventListItem key={event.id} event={event} />
+                <EventListItem 
+                  key={event.id} 
+                  event={event} 
+                  onCancel={onRsvpChange}
+                  currentState="going"
+                />
               ))
             )}
           </TabsContent>
@@ -219,7 +204,12 @@ export function MyEventsCard({
               />
             ) : (
               displayInterested.map((event) => (
-                <EventListItem key={event.id} event={event} />
+                <EventListItem 
+                  key={event.id} 
+                  event={event} 
+                  onCancel={onRsvpChange}
+                  currentState="interested"
+                />
               ))
             )}
           </TabsContent>

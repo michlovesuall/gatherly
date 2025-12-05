@@ -150,11 +150,29 @@ export default function InstitutionRegistrationForm({
             </Label>
             <Input
               id="phone"
-              type="text"
+              type="tel"
               placeholder="09xx-xxx-xxxx"
+              maxLength={11}
               required
-              {...register("phone", { required: "Phone number is required." })}
+              {...register("phone", {
+                required: "Phone number is required.",
+                pattern: {
+                  value: /^\d{11}$/,
+                  message: "Phone number must be exactly 11 digits.",
+                },
+              })}
+              onInput={(e) => {
+                // Only allow numeric input
+                const target = e.target as HTMLInputElement;
+                const value = target.value.replace(/\D/g, "");
+                if (value.length <= 11) {
+                  target.value = value;
+                }
+              }}
             />
+            <p className="text-red-500 text-xs">
+              {errors.phone && <span>{errors.phone.message}</span>}
+            </p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="webDomain">Website</Label>

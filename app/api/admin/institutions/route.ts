@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/validation";
 
 interface InstitutionRecord {
   userId: string;
@@ -85,6 +86,55 @@ export async function POST(req: Request) {
     const body = await req.json();
     validate(body);
 
+    // Validate phone number format (exactly 11 digits) if provided
+    if (body.phone && !isValidPhoneNumber(body.phone)) {
+      return NextResponse.json(
+        { ok: false, error: "Phone number must be exactly 11 digits" },
+        { status: 400 }
+      );
+    }
+
+    // Normalize phone number if provided
+    const normalizedPhone = body.phone ? normalizePhoneNumber(body.phone) : null;
+
+    // Check global phone number uniqueness if phone is provided
+    if (normalizedPhone) {
+      const phoneCheckCypher = `
+        MATCH (u:User)
+        WHERE u.phone = $phone
+        RETURN u LIMIT 1
+      `;
+      const phoneDupRows = await runQuery<{ u?: Record<string, unknown> }>(
+        phoneCheckCypher,
+        { phone: normalizedPhone }
+      );
+      if (phoneDupRows.length) {
+        return NextResponse.json(
+          { ok: false, error: "This phone number is already registered" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Check institution email uniqueness (global, as institutions are unique)
+    if (body.email) {
+      const emailCheckCypher = `
+        MATCH (u:User)
+        WHERE u.email = $email
+        RETURN u LIMIT 1
+      `;
+      const emailDupRows = await runQuery<{ u?: Record<string, unknown> }>(
+        emailCheckCypher,
+        { email: body.email }
+      );
+      if (emailDupRows.length) {
+        return NextResponse.json(
+          { ok: false, error: "This email is already registered" },
+          { status: 409 }
+        );
+      }
+    }
+
     const userId = randomUUID();
     const slug = slugify(body.name);
     const now = isoNow();
@@ -96,7 +146,7 @@ export async function POST(req: Request) {
       idNumber: body.idNumber ?? null,
       hashedPassword,
       email: body.email ?? null,
-      phone: body.phone ?? null,
+      phone: normalizedPhone,
       avatarUrl: body.avatarUrl ?? null,
       webDomain: body.webDomain ?? null,
       contactPersonEmail: body.contactPersonEmail,

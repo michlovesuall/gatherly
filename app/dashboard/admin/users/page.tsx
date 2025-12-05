@@ -6,7 +6,12 @@ import {
   getInstitutionOptions,
 } from "@/lib/repos/admin-users";
 import { AdminUsersPage } from "./_components/admin-users-page";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | User Management",
+  description: "Super Admin User Management",
+};
 export const revalidate = 60; // ISR for stats
 
 export default async function AdminUsersPageRoute({

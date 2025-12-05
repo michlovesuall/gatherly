@@ -3,27 +3,82 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Calendar, MapPin, X } from "lucide-react";
+import { Calendar, MapPin, X, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EventItem } from "@/lib/repos/student";
 import { EmptyState } from "./empty-state";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export interface MyEventsProps {
   going: EventItem[];
   interested: EventItem[];
   isLoading?: boolean;
+  onRsvpChange?: (eventId?: string, previousState?: "going" | "interested") => void;
 }
 
-function EventListItem({ event }: { event: EventItem }) {
-  const startDate = new Date(event.startAt);
+// Date formatting function - called only on client side to avoid hydration mismatch
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+function EventListItem({ 
+  event, 
+  onCancel,
+  currentState
+}: { 
+  event: EventItem;
+  onCancel?: (eventId: string, state: "going" | "interested") => void;
+  currentState: "going" | "interested";
+}) {
+  const [formattedDate, setFormattedDate] = useState<string>("");
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  useEffect(() => {
+    // Format date on client side to avoid hydration mismatch
+    const startDate = new Date(event.startAt);
+    setFormattedDate(formatDate(startDate));
+  }, [event.startAt]);
+
+  const handleCancel = async () => {
+    if (!onCancel) return;
+    
+    setIsRemoving(true);
+    try {
+      const response = await fetch(`/api/events/${event.id}/rsvp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ state: null }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to remove RSVP");
+      }
+
+      // Show specific toast message based on state
+      if (currentState === "going") {
+        toast.success("You're no longer going to this event");
+      } else {
+        toast.success("You're no longer interested in this event");
+      }
+
+      // Pass eventId and state to onCancel
+      onCancel(event.id, currentState);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to remove RSVP";
+      toast.error(errorMessage);
+    } finally {
+      setIsRemoving(false);
+    }
   };
 
   return (
@@ -34,7 +89,7 @@ function EventListItem({ event }: { event: EventItem }) {
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              <span>{formatDate(startDate)}</span>
+              <span>{formattedDate || "Loading..."}</span>
             </div>
             {event.venue && (
               <div className="flex items-center gap-1">
@@ -48,8 +103,18 @@ function EventListItem({ event }: { event: EventItem }) {
           <Button variant="ghost" size="sm">
             Open Event
           </Button>
-          <Button variant="ghost" size="sm">
-            <X className="h-4 w-4" />
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={handleCancel}
+            disabled={isRemoving}
+            title="Remove RSVP"
+          >
+            {isRemoving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </div>
@@ -74,6 +139,7 @@ export function MyEvents({
   going,
   interested,
   isLoading = false,
+  onRsvpChange,
 }: MyEventsProps) {
   if (isLoading) {
     return (
@@ -115,7 +181,12 @@ export function MyEvents({
               />
             ) : (
               going.map((event) => (
-                <EventListItem key={event.id} event={event} />
+                <EventListItem 
+                  key={event.id} 
+                  event={event} 
+                  onCancel={onRsvpChange}
+                  currentState="going"
+                />
               ))
             )}
           </TabsContent>
@@ -129,7 +200,12 @@ export function MyEvents({
               />
             ) : (
               interested.map((event) => (
-                <EventListItem key={event.id} event={event} />
+                <EventListItem 
+                  key={event.id} 
+                  event={event} 
+                  onCancel={onRsvpChange}
+                  currentState="interested"
+                />
               ))
             )}
           </TabsContent>
