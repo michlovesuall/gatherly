@@ -1,6 +1,7 @@
 import { runQuery } from "@/lib/neo4j";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
+import { ensureDatabaseConstraints } from "@/lib/db/ensure-constraints";
 
 type EnsureOptions = {
   /**
@@ -23,6 +24,14 @@ type EnsureOptions = {
 export async function ensureSuperAdmin(
   options: EnsureOptions = {}
 ): Promise<void> {
+  // First, ensure database constraints exist
+  try {
+    await ensureDatabaseConstraints();
+  } catch (error) {
+    console.warn("[Super Admin] Could not ensure constraints:", error);
+    // Continue anyway - constraints might already exist
+  }
+
   // Quick existence check
   const existing = await runQuery<{
     userId: string;

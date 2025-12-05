@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { ensureSuperAdmin } from "@/lib/auth/ensure-super-admin";
+import { ensureDatabaseConstraints } from "@/lib/db/ensure-constraints";
 import neo4j from "neo4j-driver";
 
 export async function GET() {
-  // Ensure super admin exists on health hits in dev/boot
+  // Ensure database constraints and super admin exist on health hits in dev/boot
   try {
+    await ensureDatabaseConstraints();
     await ensureSuperAdmin({ hardenExisting: true });
   } catch {
     // ignore seeding errors on health check
