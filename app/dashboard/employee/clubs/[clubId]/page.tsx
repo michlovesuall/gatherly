@@ -6,7 +6,12 @@ import {
   getClubPosts,
 } from "@/lib/repos/employee";
 import { AdvisorClubDashboard } from "./_components/advisor-club-dashboard";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Gatherly | Club Dashboard",
+  description: "Advisor's Club Dashboard",
+};
 export default async function AdvisorClubPage({
   params,
 }: {

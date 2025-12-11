@@ -20,9 +20,6 @@ export default function Home() {
   const [tab, setTab] = useState<TabKey>("login");
   const [registerTab, setRegisterTab] = useState<RegisterTabKey>("student");
 
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState("");
-
   return (
     <div
       className={
@@ -110,10 +107,6 @@ export default function Home() {
                 registerTab={registerTab}
                 setRegisterTab={setRegisterTab}
                 setMainTab={setTab}
-                value={value}
-                setValue={setValue}
-                open={open}
-                setOpen={setOpen}
               />
             </Tabs>
           </Card>

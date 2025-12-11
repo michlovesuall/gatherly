@@ -21,7 +21,7 @@ export default async function StudentNewsfeedPage({
   }
 
   const params = await searchParams;
-  const filter = (params?.filter as "for-you" | "global") || "global";
+  const filter = (params?.filter as "all" | "institution" | "public") || "all";
 
   // Fetch all data in parallel - use filter from URL
   const [context, feedItems, myEvents, certificates] = await Promise.all([

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS } from "@/lib/constants";
 
 export async function POST(
   req: Request,
@@ -94,14 +95,19 @@ export async function POST(
       name: string;
     }>(
       `
-      MATCH (s:User {userId: $userId})-[:MEMBER_OF]->(i)
+      MATCH (s:User {userId: $userId, platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
         AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-        AND s.platformRole = "student"
+        AND coalesce(r.status, $pendingStatus) = $activeStatus
       RETURN COUNT(s) > 0 AS exists, s.name AS name
       LIMIT 1
       `,
-      { userId, institutionId }
+      { 
+        userId, 
+        institutionId,
+        pendingStatus: RELATIONSHIP_STATUS.PENDING,
+        activeStatus: RELATIONSHIP_STATUS.ACTIVE
+      }
     );
 
     if (!studentCheck[0]?.exists) {

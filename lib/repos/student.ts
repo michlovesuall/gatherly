@@ -517,7 +517,7 @@ export async function getNewsfeedContext(
     MATCH (u:User {userId: $userId})
     OPTIONAL MATCH (u)-[:MEMBER_OF]->(i)
     OPTIONAL MATCH (u)-[:ENROLLED_IN_DEPARTMENT]->(d:Department)
-    OPTIONAL MATCH (u)-[:ENROLLED_IN_PROGRAM]->(p:Program)
+    OPTIONAL MATCH (u)-[:ENROLLED_IN]->(p:Program)
     OPTIONAL MATCH (u)-[:ENROLLED_IN_COLLEGE]->(c:College)
     RETURN 
       u.name AS userName,
@@ -579,7 +579,7 @@ export interface NewsfeedItem {
 export async function getNewsfeedItems(
   userId: string,
   institutionId: string,
-  filter: "for-you" | "global" = "for-you",
+  filter: "all" | "institution" | "public" = "all",
   limit = 50
 ): Promise<NewsfeedItem[]> {
   console.log(
@@ -587,7 +587,7 @@ export async function getNewsfeedItems(
   );
 
   // Debug: Log the query being used
-  if (filter === "for-you" && institutionId) {
+  if (filter === "institution" && institutionId) {
     console.log(
       `[getNewsfeedItems] Using Institution filter with institutionId: ${institutionId}`
     );
@@ -598,10 +598,12 @@ export async function getNewsfeedItems(
   const announcementsLimit = Math.ceil(limit / 2);
 
   // Get events (both institution and club events) - only published/approved
-  // For "for-you" (Institution filter): Posts with "institution" visibility from the user's institution only
-  // For "global": All posts from all institutions/clubs (regardless of visibility)
+  // Filter options:
+  // - "all": All events from all institutions/clubs (regardless of visibility)
+  // - "institution": Events with "institution" visibility from the user's institution only
+  // - "public": Events with "public" visibility from all institutions/clubs
   const eventsQuery =
-    filter === "for-you" && institutionId
+    filter === "institution" && institutionId
       ? `
     // Institution filter: Events with "institution" visibility from the user's institution only
     // Approach: Find events that belong to the user's institution (directly or through clubs)
@@ -663,7 +665,7 @@ export async function getNewsfeedItems(
     ORDER BY e.startAt DESC
     LIMIT $eventsLimit
     `
-      : filter === "for-you"
+      : filter === "institution"
       ? `
     // Institution filter: No institutionId provided, return empty
     RETURN null AS id, null AS title, null AS description, null AS startAt, null AS endAt, 
@@ -671,8 +673,47 @@ export async function getNewsfeedItems(
            null AS counts, null AS rsvpState, null AS institutionName
     LIMIT 0
     `
+      : filter === "public"
+      ? `
+    // Public filter: All events with "public" visibility from all institutions/clubs
+    MATCH (e:Event)
+    WHERE e.status IN ["approved", "published"]
+      AND e.visibility = "public"
+      AND e.visibility IS NOT NULL
+    OPTIONAL MATCH (e)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (c:Club)-[:HOSTS]->(e)
+    OPTIONAL MATCH (c)-[:BELONGS_TO]->(clubInst)
+    OPTIONAL MATCH (u:User {userId: $userId})-[:RSVP]->(r:RSVP)-[:FOR]->(e)
+    WITH e, u, r, i, c, clubInst,
+      CASE 
+        WHEN r.state = "going" THEN "going"
+        WHEN r.state = "interested" THEN "interested"
+        ELSE null
+      END AS rsvpState
+    OPTIONAL MATCH (goingUser:User)-[:RSVP]->(goingRSVP:RSVP {state: "going"})-[:FOR]->(e)
+    OPTIONAL MATCH (interestedUser:User)-[:RSVP]->(interestedRSVP:RSVP {state: "interested"})-[:FOR]->(e)
+    OPTIONAL MATCH (checkedInUser:User)-[:CHECKED_IN]->(e)
+    WITH e, rsvpState, i, c, clubInst,
+      COUNT(DISTINCT goingUser) AS going,
+      COUNT(DISTINCT interestedUser) AS interested,
+      COUNT(DISTINCT checkedInUser) AS checkedIn
+    RETURN e.eventId AS id,
+           e.title AS title,
+           e.description AS description,
+           e.startAt AS startAt,
+           e.endAt AS endAt,
+           e.venue AS venue,
+           e.visibility AS visibility,
+           e.maxSlots AS maxSlots,
+           e.imageUrl AS imageUrl,
+           {going: going, interested: interested, checkedIn: checkedIn} AS counts,
+           rsvpState,
+           COALESCE(i.name, i.institutionName, clubInst.name, clubInst.institutionName, "") AS institutionName
+    ORDER BY e.startAt DESC
+    LIMIT $eventsLimit
+    `
       : `
-    // Global: All events from all institutions/clubs (regardless of visibility)
+    // All filter: All events from all institutions/clubs (regardless of visibility)
     MATCH (e:Event)
     WHERE e.status IN ["approved", "published"]
     OPTIONAL MATCH (e)-[:BELONGS_TO]->(i)
@@ -735,10 +776,12 @@ export async function getNewsfeedItems(
   console.log(`[getNewsfeedItems] Events result count: ${eventsResult.length}`);
 
   // Get announcements (both institution and club announcements) - only published/approved
-  // For "for-you" (Institution filter): Posts with "institution" visibility from the user's institution only
-  // For "global": All posts from all institutions/clubs (regardless of visibility)
+  // Filter options:
+  // - "all": All announcements from all institutions/clubs (regardless of visibility)
+  // - "institution": Announcements with "institution" visibility from the user's institution only
+  // - "public": Announcements with "public" visibility from all institutions/clubs
   const announcementsQuery =
-    filter === "for-you" && institutionId
+    filter === "institution" && institutionId
       ? `
     // Institution filter: Announcements with "institution" visibility from the user's institution only
     // Approach: Find announcements that belong to the user's institution (directly or through clubs)
@@ -789,15 +832,43 @@ export async function getNewsfeedItems(
     ORDER BY a.createdAt DESC
     LIMIT $announcementsLimit
     `
-      : filter === "for-you"
+      : filter === "institution"
       ? `
     // Institution filter: No institutionId provided, return empty
     RETURN null AS id, null AS title, null AS content, null AS createdAt, null AS imageUrl,
            null AS author, null AS authorType, null AS visibility, null AS clubName, null AS institutionName
     LIMIT 0
     `
+      : filter === "public"
+      ? `
+    // Public filter: All announcements with "public" visibility from all institutions/clubs
+    MATCH (a:Announcement)
+    WHERE a.status IN ["approved", "published"]
+      AND a.visibility = "public"
+      AND a.visibility IS NOT NULL
+    OPTIONAL MATCH (a)-[:BELONGS_TO]->(i)
+    OPTIONAL MATCH (a)-[:BELONGS_TO_CLUB]->(c:Club)
+    OPTIONAL MATCH (c)-[:BELONGS_TO]->(clubInst)
+    OPTIONAL MATCH (a)<-[:CREATED]-(creator:User)
+    RETURN a.announcementId AS id,
+           a.title AS title,
+           a.content AS content,
+           a.createdAt AS createdAt,
+           a.imageUrl AS imageUrl,
+           COALESCE(creator.name, i.name, i.institutionName, "") AS author,
+           CASE 
+             WHEN c IS NOT NULL THEN "club"
+             WHEN i IS NOT NULL THEN "institution"
+             ELSE "institution"
+           END AS authorType,
+           COALESCE(a.visibility, "public") AS visibility,
+           c.name AS clubName,
+           COALESCE(i.name, i.institutionName, clubInst.name, clubInst.institutionName, "") AS institutionName
+    ORDER BY a.createdAt DESC
+    LIMIT $announcementsLimit
+    `
       : `
-    // Global: All announcements from all institutions/clubs (regardless of visibility)
+    // All filter: All announcements from all institutions/clubs (regardless of visibility)
     MATCH (a:Announcement)
     WHERE a.status IN ["approved", "published"]
     OPTIONAL MATCH (a)-[:BELONGS_TO]->(i)
@@ -891,21 +962,30 @@ export async function getNewsfeedItems(
     return dateB - dateA;
   });
 
-  // Additional client-side filtering for "for-you" (Institution filter) to ensure only "institution" visibility posts
+  // Additional client-side filtering to ensure correct visibility
   const filteredItems =
-    filter === "for-you"
+    filter === "institution"
       ? sortedItems.filter((item) => {
           // Only include posts with "institution" visibility
           return item.visibility === "institution";
         })
-      : sortedItems;
+      : filter === "public"
+      ? sortedItems.filter((item) => {
+          // Only include posts with "public" visibility
+          return item.visibility === "public";
+        })
+      : sortedItems; // "all" filter - show all posts
 
   console.log(
     `[getNewsfeedItems] Total items after combining and sorting: ${sortedItems.length}`
   );
-  if (filter === "for-you") {
+  if (filter === "institution") {
     console.log(
       `[getNewsfeedItems] Filtered items (institution visibility only): ${filteredItems.length}`
+    );
+  } else if (filter === "public") {
+    console.log(
+      `[getNewsfeedItems] Filtered items (public visibility only): ${filteredItems.length}`
     );
   }
 

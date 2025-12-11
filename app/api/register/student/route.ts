@@ -2,7 +2,20 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { runQuery } from "@/lib/neo4j";
-import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/validation";
+import { normalizePhoneNumber } from "@/lib/validation";
+import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS, PLATFORM_ROLE, USER_STATUS } from "@/lib/constants";
+import {
+  validateRegistrationFields,
+  findInstitution,
+  isEmailRegisteredInInstitution,
+  isEmailGloballyRegistered,
+  hasExistingInstitutionRelationship,
+  validateCollegeBelongsToInstitution,
+  validateDepartmentBelongsToInstitution,
+  validateProgramBelongsToInstitution,
+  type BaseRegistrationRequest,
+} from "@/lib/shared-registration";
 
 interface StudentRequest {
   name: string;
@@ -20,28 +33,19 @@ interface StudentRequest {
 
 export async function POST(req: Request) {
   try {
+    // Check if account is being created by institution or super_admin
+    const session = await getSession();
+    const isCreatedByInstitutionOrAdmin = 
+      session && (session.role === "institution" || session.role === "super_admin");
+    
     // creates a variable body with interface students to typed data
     const body: StudentRequest = await req.json();
 
-    // Checks if the required fields has values
-    if (!body.name || !body.idNumber || !body.email || !body.password) {
+    // Validate registration fields using shared utility
+    const validation = validateRegistrationFields(body);
+    if (!validation.isValid) {
       return NextResponse.json(
-        { ok: false, error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-    // Checks if institution fields has values (require at least one)
-    if (!body.institutionId && !body.institutionSlug) {
-      return NextResponse.json(
-        { ok: false, error: "Missing institution selection" },
-        { status: 400 }
-      );
-    }
-
-    // Validate phone number format (exactly 11 digits)
-    if (!body.phone || !isValidPhoneNumber(body.phone)) {
-      return NextResponse.json(
-        { ok: false, error: "Phone number must be exactly 11 digits" },
+        { ok: false, error: validation.error },
         { status: 400 }
       );
     }
@@ -71,73 +75,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // Match the institution Node (supports new userId and legacy institutionId)
-    const matchInstitutionCyper = body.institutionId
-      ? `MATCH (i)
-         WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
-           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-         RETURN i LIMIT 1`
-      : `MATCH (i)
-         WHERE i.slug = $institutionSlug
-           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-         RETURN i LIMIT 1`;
-
-    const instParams = body.institutionId
-      ? { institutionId: body.institutionId }
-      : { institutionSlug: body.institutionSlug };
-    const instRows = await runQuery<{ i?: Record<string, unknown> }>(
-      matchInstitutionCyper,
-      instParams
-    );
-
-    if (!instRows.length) {
+    // Find institution using shared utility
+    const institution = await findInstitution(body.institutionId, body.institutionSlug);
+    if (!institution || !institution.institutionId) {
       return NextResponse.json(
         { ok: false, error: "Selected institution not found" },
         { status: 404 }
       );
     }
+    const institutionIdForCreate = institution.institutionId;
 
-    const institution = instRows[0].i as { userId?: string; institutionId?: string };
-
-    // Check email uniqueness within the institution
-    const emailInstitutionCheckCypher = `
-      MATCH (u:User)-[:MEMBER_OF]->(i)
-      WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
-        AND u.email = $email
-      RETURN u LIMIT 1
-    `;
-    const emailInstDupRows = await runQuery<{ u?: Record<string, unknown> }>(
-      emailInstitutionCheckCypher,
-      {
-        email: body.email,
-        institutionId: institution.userId || institution.institutionId,
-      }
-    );
-    if (emailInstDupRows.length) {
+    // Check email uniqueness within the institution using shared utility
+    if (await isEmailRegisteredInInstitution(body.email, institutionIdForCreate)) {
       return NextResponse.json(
         { ok: false, error: "This email is already registered in this institution" },
         { status: 409 }
       );
     }
 
-    // Check global email reuse prevention (even if user is deleted)
-    const emailGlobalCheckCypher = `
-      MATCH (u:User)
-      WHERE u.email = $email
-      RETURN u LIMIT 1
-    `;
-    const emailGlobalDupRows = await runQuery<{ u?: Record<string, unknown> }>(
-      emailGlobalCheckCypher,
-      { email: body.email }
-    );
-    if (emailGlobalDupRows.length) {
+    // Check global email reuse prevention using shared utility
+    if (await isEmailGloballyRegistered(body.email)) {
       return NextResponse.json(
         { ok: false, error: "This email has been used and cannot be reused" },
         { status: 409 }
       );
     }
 
-    // Checks for existing id number on the database
+    // Check for existing ID number
     const idNumberCheckCypher = `
       MATCH (u:User)
       WHERE u.idNumber = $idNumber
@@ -154,40 +118,56 @@ export async function POST(req: Request) {
       );
     }
 
-    // Match the institution Node (supports new userId and legacy institutionId)
-    const matchInstitutionCyper = body.institutionId
-      ? `MATCH (i)
-         WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
-           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-         RETURN i LIMIT 1`
-      : `MATCH (i)
-         WHERE i.slug = $institutionSlug
-           AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-         RETURN i LIMIT 1`;
-
-    const instParams = body.institutionId
-      ? { institutionId: body.institutionId }
-      : { institutionSlug: body.institutionSlug };
-    const instRows = await runQuery<{ i?: Record<string, unknown> }>(
-      matchInstitutionCyper,
-      instParams
-    );
-
-    if (!instRows.length) {
+    // Check if user already has a relationship to any institution using shared utility
+    if (await hasExistingInstitutionRelationship(body.email)) {
       return NextResponse.json(
-        { ok: false, error: "Selected institution not found" },
-        { status: 404 }
+        { ok: false, error: "User already has a relationship with an institution" },
+        { status: 409 }
       );
     }
 
+    // Validate that college, department, and program belong to the institution using shared utilities
+    if (body.collegeId) {
+      if (!(await validateCollegeBelongsToInstitution(body.collegeId, institutionIdForCreate))) {
+        return NextResponse.json(
+          { ok: false, error: "Selected college does not belong to this institution" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.departmentId) {
+      if (!(await validateDepartmentBelongsToInstitution(body.departmentId, institutionIdForCreate))) {
+        return NextResponse.json(
+          { ok: false, error: "Selected department does not belong to this institution" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.programId) {
+      if (!(await validateProgramBelongsToInstitution(body.programId, institutionIdForCreate))) {
+        return NextResponse.json(
+          { ok: false, error: "Selected program does not belong to this institution" },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create the student with relationships to college, department, and program
+    // Use the institution ID we already found to avoid parameter issues
+    // Ensure we have a valid institution ID before proceeding
+    if (!institutionIdForCreate || typeof institutionIdForCreate !== 'string' || institutionIdForCreate.trim() === '') {
+      console.error("Invalid institutionIdForCreate:", institutionIdForCreate);
+      return NextResponse.json(
+        { ok: false, error: "Invalid institution identifier" },
+        { status: 400 }
+      );
+    }
+    
     const createCypher = `
       MATCH (i)
-      WHERE ${
-        body.institutionId
-          ? "(i.userId = $institutionId OR i.institutionId = $institutionId)"
-          : "i.slug = $institutionSlug"
-      }
+      WHERE (i.userId = $institutionIdForCreate OR i.institutionId = $institutionIdForCreate)
         AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       CREATE (u:User {
         userId: $userId,
@@ -202,53 +182,58 @@ export async function POST(req: Request) {
         createdAt: $createdAt,
         updatedAt: $updatedAt
       })
-      CREATE (u)-[m:MEMBER_OF {
-        role: $memberRole,
+      CREATE (u)-[:STUDENT {
         status: $memberStatus,
         createdAt: $createdAt,
         updatedAt: $updatedAt
       }]->(i)
-      WITH u, i, m
+      WITH u, i
       ${
         body.collegeId
           ? `
-      MATCH (c:College {collegeId: $collegeId})
-      CREATE (u)-[:ENROLLED_IN_COLLEGE {
-        createdAt: $createdAt,
-        updatedAt: $updatedAt
-      }]->(c)
-      WITH u, i, m
+      MATCH (c:College {collegeId: $collegeId})-[:BELONGS_TO]->(i)
+      MERGE (u)-[ec:ENROLLED_IN_COLLEGE]->(c)
+      ON CREATE SET
+        ec.createdAt = $createdAt,
+        ec.updatedAt = $updatedAt
+      ON MATCH SET
+        ec.updatedAt = $updatedAt
+      WITH u, i
       `
           : ""
       }
       ${
         body.departmentId
           ? `
-      MATCH (d:Department {departmentId: $departmentId})
-      CREATE (u)-[:ENROLLED_IN_DEPARTMENT {
-        createdAt: $createdAt,
-        updatedAt: $updatedAt
-      }]->(d)
-      WITH u, i, m
+      MATCH (d:Department {departmentId: $departmentId})-[:BELONGS_TO]->(i)
+      MERGE (u)-[ed:ENROLLED_IN_DEPARTMENT]->(d)
+      ON CREATE SET
+        ed.createdAt = $createdAt,
+        ed.updatedAt = $updatedAt
+      ON MATCH SET
+        ed.updatedAt = $updatedAt
+      WITH u, i
       `
           : ""
       }
       ${
         body.programId
           ? `
-      MATCH (p:Program {programId: $programId})
-      CREATE (u)-[:ENROLLED_IN_PROGRAM {
-        createdAt: $createdAt,
-        updatedAt: $updatedAt
-      }]->(p)
-      WITH u, i, m
+      MATCH (p:Program {programId: $programId})-[:BELONGS_TO]->(i)
+      MERGE (u)-[ep:ENROLLED_IN]->(p)
+      ON CREATE SET
+        ep.createdAt = $createdAt,
+        ep.updatedAt = $updatedAt
+      ON MATCH SET
+        ep.updatedAt = $updatedAt
+      WITH u, i
       `
           : ""
       }
-      RETURN u { .* } AS user, i { .* } AS institution, m;
+      RETURN u { .* } AS user, i { .* } AS institution;
     `;
 
-    const params = {
+    const params: Record<string, unknown> = {
       userId,
       name: body.name,
       idNumber: body.idNumber,
@@ -256,23 +241,28 @@ export async function POST(req: Request) {
       phone: normalizedPhone,
       hashedPassword,
       avatarUrl: body.avatarUrl ?? null,
-      platformRole: "student",
-      status: "active",
+      platformRole: PLATFORM_ROLE.STUDENT,
+      status: USER_STATUS.ACTIVE,
+      memberStatus: isCreatedByInstitutionOrAdmin ? RELATIONSHIP_STATUS.ACTIVE : RELATIONSHIP_STATUS.PENDING,
       createdAt: now,
       updatedAt: now,
-      memberRole: "student",
-      memberStatus: "approved",
-      institutionId: body.institutionId,
-      institutionSlug: body.institutionSlug,
-      collegeId: body.collegeId ?? null,
-      departmentId: body.departmentId ?? null,
-      programId: body.programId ?? null,
+      institutionIdForCreate,
     };
+
+    // Only add optional parameters if they have values
+    if (body.collegeId) {
+      params.collegeId = body.collegeId;
+    }
+    if (body.departmentId) {
+      params.departmentId = body.departmentId;
+    }
+    if (body.programId) {
+      params.programId = body.programId;
+    }
 
     const [row] = await runQuery<{
       user: Record<string, unknown>;
       institution: Record<string, unknown>;
-      m: Record<string, unknown>;
     }>(createCypher, params);
 
     return NextResponse.json(

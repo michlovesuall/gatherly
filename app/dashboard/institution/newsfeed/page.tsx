@@ -26,7 +26,7 @@ export default async function InstitutionNewsfeedPage({
   }
 
   const params = await searchParams;
-  const filter = (params?.filter as "for-you" | "global") || "global";
+  const filter = (params?.filter as "all" | "institution" | "public") || "all";
 
   const [context, feedItems] = await Promise.all([
     getNewsfeedContext(session.userId),

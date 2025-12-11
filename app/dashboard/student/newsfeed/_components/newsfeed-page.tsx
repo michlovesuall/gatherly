@@ -26,9 +26,9 @@ export function NewsfeedPage({
   stats: initialStats,
   role,
 }: NewsfeedPageProps) {
-  // For super_admin, always use "global" filter (no filter dropdown available)
-  const [feedFilter, setFeedFilter] = useState<"for-you" | "global">(
-    role === "super_admin" ? "global" : "global"
+  // For super_admin, always use "all" filter (no filter dropdown available)
+  const [feedFilter, setFeedFilter] = useState<"all" | "institution" | "public">(
+    role === "super_admin" ? "all" : "all"
   );
   const [feedItems, setFeedItems] = useState<NewsfeedItem[]>(initialFeedItems);
   const [loading, setLoading] = useState(false);
@@ -38,12 +38,7 @@ export function NewsfeedPage({
   const [stats, setStats] = useState(initialStats || { going: 0, interested: 0, certificates: 0 });
 
   // Fetch feed items when filter changes - refresh feed panel only
-  // Skip for super_admin since they don't have filter options
   useEffect(() => {
-    // For super_admin, filter is always "global" and doesn't change
-    if (role === "super_admin") {
-      return;
-    }
 
     const fetchFeed = async () => {
       setLoading(true);
@@ -131,10 +126,7 @@ export function NewsfeedPage({
         role={role}
         feedFilter={feedFilter}
         onFilterChange={(filter) => {
-          // Super-admin doesn't have filter options, so don't allow changes
-          if (role !== "super_admin") {
-            setFeedFilter(filter);
-          }
+          setFeedFilter(filter);
         }}
       />
 
@@ -150,7 +142,7 @@ export function NewsfeedPage({
           >
             {/* First Column - Feed (2/3 width for Student/Employee, full width for Institution/Super-Admin, scrollable) */}
             <div
-              className={`h-full overflow-y-auto flex justify-center items-center ${
+              className={`h-full overflow-y-auto flex justify-center items-start ${
                 role === "student" || role === "employee"
                   ? "lg:col-span-2"
                   : "lg:col-span-1"

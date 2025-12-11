@@ -119,6 +119,8 @@ export function AdvisorClubDashboard({
   }>({ colleges: [], departments: [], programs: [] });
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState<string | null>(null);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [fetchStudentsError, setFetchStudentsError] = useState<string | null>(null);
 
   // Filter states
   const [dateFilter, setDateFilter] = useState<string>("all"); // "all", "today", "week", "month"
@@ -227,6 +229,7 @@ export function AdvisorClubDashboard({
   // Handle add member
   const handleAddMember = async (userId: string) => {
     setIsAddingMember(userId);
+    setAddMemberError(null);
     try {
       const res = await fetch(`/api/employee/clubs/${clubId}/members`, {
         method: "POST",
@@ -239,7 +242,7 @@ export function AdvisorClubDashboard({
       const data = await res.json();
 
       if (!res.ok || !data?.ok) {
-        alert(data?.error || "Failed to add member");
+        setAddMemberError(data?.error || "Failed to add member");
         return;
       }
 
@@ -264,7 +267,7 @@ export function AdvisorClubDashboard({
       // Refresh students list to update filter options
       await fetchStudents();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to add member");
+      setAddMemberError(e instanceof Error ? e.message : "Failed to add member");
     } finally {
       setIsAddingMember(null);
     }
@@ -308,13 +311,14 @@ export function AdvisorClubDashboard({
             if (data.filters) {
               setFilterOptions(data.filters);
             }
+            setFetchStudentsError(null); // Clear error on success
           } else {
             console.error("Failed to fetch students:", data?.error);
-            alert(data?.error || "Failed to fetch students");
+            setFetchStudentsError(data?.error || "Failed to fetch students");
           }
         } catch (error) {
           console.error("Failed to fetch students:", error);
-          alert("Failed to fetch students. Please try again.");
+          setFetchStudentsError("Failed to fetch students. Please try again.");
         } finally {
           setIsLoadingStudents(false);
         }
@@ -2898,6 +2902,8 @@ export function AdvisorClubDashboard({
             setSelectedDepartment("all");
             setSelectedProgram("all");
             setStudents([]);
+            setAddMemberError(null);
+            setFetchStudentsError(null);
           }
         }}
       >
@@ -2910,6 +2916,18 @@ export function AdvisorClubDashboard({
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Error Messages */}
+            {addMemberError && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
+                {addMemberError}
+              </div>
+            )}
+            {fetchStudentsError && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
+                {fetchStudentsError}
+              </div>
+            )}
+            
             {/* Search and Filters */}
             <div className="space-y-3">
               <div className="relative">

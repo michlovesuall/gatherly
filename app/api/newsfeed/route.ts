@@ -18,12 +18,12 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const filter = (url.searchParams.get("filter") || "global") as "for-you" | "global";
+    const filter = (url.searchParams.get("filter") || "all") as "all" | "institution" | "public";
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
 
-    // For super_admin without institutionId, default to global view
+    // For super_admin without institutionId, default to all view
     const effectiveFilter = session.role === "super_admin" && !session.institutionId 
-      ? "global" 
+      ? "all" 
       : filter;
 
     const items = await getNewsfeedItems(

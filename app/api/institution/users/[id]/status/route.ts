@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS, USER_STATUS } from "@/lib/constants";
 
 export async function PATCH(
   req: Request,
@@ -25,9 +26,9 @@ export async function PATCH(
 
     const { status } = await req.json();
 
-    if (status !== "active" && status !== "disabled") {
+    if (status !== USER_STATUS.ACTIVE && status !== USER_STATUS.DISABLED) {
       return NextResponse.json(
-        { ok: false, error: "Invalid status. Must be 'active' or 'disabled'" },
+        { ok: false, error: `Invalid status. Must be '${USER_STATUS.ACTIVE}' or '${USER_STATUS.DISABLED}'` },
         { status: 400 }
       );
     }
@@ -36,22 +37,32 @@ export async function PATCH(
     const institutionId = session.institutionId || session.userId;
     const now = new Date().toISOString();
 
-    // Update user status (only for users that are members of this institution)
+    // Update user status (checking all relationship types: STUDENT, EMPLOYEE, MEMBER_OF)
+    // Only update if relationship status is "active" (approved members)
     const result = await runQuery<{
       userId: string;
       name: string;
       status: string;
     }>(
       `
-      MATCH (u:User {userId: $userId})-[m:MEMBER_OF]->(i)
+      MATCH (u:User {userId: $userId})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
         AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-        AND coalesce(m.status, "pending") = "approved"
+        AND coalesce(r.status, $pendingStatus) = $activeStatus
       SET u.status = $status,
           u.updatedAt = $now
+      WITH u, r
       RETURN u.userId AS userId, u.name AS name, u.status AS status
+      LIMIT 1
       `,
-      { userId: id, institutionId, status, now }
+      {
+        userId: id,
+        institutionId,
+        status,
+        activeStatus: RELATIONSHIP_STATUS.ACTIVE,
+        pendingStatus: RELATIONSHIP_STATUS.PENDING,
+        now,
+      }
     );
 
     if (!result.length) {

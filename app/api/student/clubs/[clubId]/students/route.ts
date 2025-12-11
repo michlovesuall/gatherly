@@ -96,7 +96,7 @@ export async function GET(
 
     // Program filter
     if (programId && programId.trim()) {
-      matchClauses.push(`MATCH (s)-[:ENROLLED_IN_PROGRAM]->(progFilter:Program {programId: $programId})`);
+      matchClauses.push(`MATCH (s)-[:ENROLLED_IN]->(progFilter:Program {programId: $programId})`);
       queryParams.programId = programId;
     }
 
@@ -127,7 +127,7 @@ export async function GET(
       ${whereClause}
       OPTIONAL MATCH (s)-[:ENROLLED_IN_COLLEGE]->(col:College)
       OPTIONAL MATCH (s)-[:ENROLLED_IN_DEPARTMENT]->(dept:Department)
-      OPTIONAL MATCH (s)-[:ENROLLED_IN_PROGRAM]->(prog:Program)
+      OPTIONAL MATCH (s)-[:ENROLLED_IN]->(prog:Program)
       RETURN DISTINCT
         s.userId AS userId,
         s.name AS name,
@@ -200,7 +200,7 @@ export async function GET(
         AND NOT EXISTS {
           MATCH (s)-[:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
         }
-      MATCH (s)-[:ENROLLED_IN_PROGRAM]->(prog:Program)
+        MATCH (s)-[:ENROLLED_IN]->(prog:Program)
       ${departmentId && departmentId.trim() ? `MATCH (s)-[:ENROLLED_IN_DEPARTMENT]->(dept:Department {departmentId: $departmentId})` : ""}
       ${collegeId && collegeId.trim() ? `MATCH (s)-[:ENROLLED_IN_COLLEGE]->(col:College {collegeId: $collegeId})` : ""}
       RETURN DISTINCT prog.programId AS programId, prog.name AS name, prog.acronym AS acronym

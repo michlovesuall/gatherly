@@ -26,7 +26,7 @@ export default async function AdminNewsfeedPage({
   }
 
   const params = await searchParams;
-  const filter = (params?.filter as "for-you" | "global") || "global";
+  const filter = (params?.filter as "all" | "institution" | "public") || "all";
 
   // Fetch only necessary data for Super-Admin role - use filter from URL
   const [context, feedItems] = await Promise.all([

@@ -1,4 +1,6 @@
 import { runQuery } from "@/lib/neo4j";
+import { RELATIONSHIP_STATUS } from "@/lib/constants";
+// Helper functions available in lib/neo4j-helpers.ts for future refactoring
 
 export interface InstitutionDashboardStats {
   totalInstitutions: number;
@@ -24,10 +26,6 @@ export interface InstitutionListItem {
   createdAt: string;
 }
 
-/**
- * Get platform-wide dashboard statistics for institution role
- * This includes counts of all institutions, students, employees, and clubs
- */
 export async function getInstitutionDashboardStats(): Promise<InstitutionDashboardStats> {
   const result = await runQuery<{
     totalInstitutions: number;
@@ -66,10 +64,6 @@ export async function getInstitutionDashboardStats(): Promise<InstitutionDashboa
   };
 }
 
-/**
- * Get admin dashboard statistics
- * Returns counts of approved institutions, active students, and active employees
- */
 export async function getAdminDashboardStats(): Promise<InstitutionDashboardStats> {
   const result = await runQuery<{
     totalInstitutions: number;
@@ -117,10 +111,6 @@ export async function getAdminDashboardStats(): Promise<InstitutionDashboardStat
   };
 }
 
-/**
- * Get institution statistics for admin dashboard
- * Returns counts of registered, pending, and rejected institutions
- */
 export async function getAdminInstitutionStats(): Promise<InstitutionStats> {
   const result = await runQuery<{
     registered: number;
@@ -145,10 +135,6 @@ export async function getAdminInstitutionStats(): Promise<InstitutionStats> {
   };
 }
 
-/**
- * Get institution-specific dashboard statistics
- * Returns counts of employees, students, and clubs for a specific institution
- */
 export async function getInstitutionSpecificStats(
   institutionId: string
 ): Promise<{
@@ -167,14 +153,14 @@ export async function getInstitutionSpecificStats(
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
     
-    // Count students - users with platformRole "student" or NULL that are MEMBER_OF this institution
-    OPTIONAL MATCH (s:User)-[:MEMBER_OF]->(i)
+    // Count students - users with platformRole "student" or NULL (checking all relationship types)
+    OPTIONAL MATCH (s:User)-[:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (s.platformRole IS NULL OR s.platformRole = "student")
       AND coalesce(s.status, "active") = "active"
     WITH i, COUNT(DISTINCT s) AS totalStudents
     
-    // Count employees - users with platformRole "employee" that are MEMBER_OF this institution
-    OPTIONAL MATCH (e:User)-[:MEMBER_OF]->(i)
+    // Count employees - users with platformRole "employee" (checking all relationship types)
+    OPTIONAL MATCH (e:User)-[:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE e.platformRole = "employee"
       AND coalesce(e.status, "active") = "active"
     WITH i, totalStudents, COUNT(DISTINCT e) AS totalEmployees
@@ -196,10 +182,6 @@ export async function getInstitutionSpecificStats(
   };
 }
 
-/**
- * Get list of institutions for admin approval table
- * Filters by status (pending by default) and search query
- */
 export async function getAdminInstitutionList(
   status?: string,
   searchQuery?: string
@@ -276,56 +258,58 @@ export interface InstitutionUserStats {
   totalEmployees: number;
 }
 
-/**
- * Get user statistics for institution dashboard
- * Returns counts of total users, students, and employees within the institution
- */
 export async function getInstitutionUserStats(
   institutionId: string
 ): Promise<InstitutionUserStats> {
+  // Optimized: Single query instead of N+1 pattern
   const result = await runQuery<{
-    totalUsers: number;
     totalStudents: number;
     totalEmployees: number;
   }>(
     `
-    // Match the institution
     MATCH (i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
     
-    // Count all users (students + employees) that are MEMBER_OF this institution
-    OPTIONAL MATCH (u:User)-[m:MEMBER_OF]->(i)
-    WHERE (u.platformRole IS NULL OR u.platformRole IN ["student", "employee"])
-    WITH i, COUNT(DISTINCT u) AS totalUsers
+    // Collect all students (STUDENT relationship or MEMBER_OF with student platformRole)
+    OPTIONAL MATCH (s1:User)-[:STUDENT]->(i)
+    OPTIONAL MATCH (s2:User)-[:MEMBER_OF]->(i)
+    WHERE (s2.platformRole IS NULL OR s2.platformRole = "student")
     
-    // Count students
-    OPTIONAL MATCH (s:User)-[ms:MEMBER_OF]->(i)
-    WHERE (s.platformRole IS NULL OR s.platformRole = "student")
-    WITH i, totalUsers, COUNT(DISTINCT s) AS totalStudents
+    // Collect all employees (EMPLOYEE relationship or MEMBER_OF with employee platformRole)
+    OPTIONAL MATCH (e1:User)-[:EMPLOYEE]->(i)
+    OPTIONAL MATCH (e2:User)-[:MEMBER_OF]->(i)
+    WHERE e2.platformRole = "employee"
     
-    // Count employees
-    OPTIONAL MATCH (e:User)-[me:MEMBER_OF]->(i)
-    WHERE e.platformRole = "employee"
-    WITH totalUsers, totalStudents, COUNT(DISTINCT e) AS totalEmployees
+    // Combine and count distinct users
+    WITH i,
+      collect(DISTINCT s1) + collect(DISTINCT s2) AS allStudents,
+      collect(DISTINCT e1) + collect(DISTINCT e2) AS allEmployees
     
-    RETURN totalUsers, totalStudents, totalEmployees
+    UNWIND allStudents AS student
+    WITH i, collect(DISTINCT student.userId) AS studentIds, allEmployees
+    UNWIND allEmployees AS employee
+    WITH i, studentIds, collect(DISTINCT employee.userId) AS employeeIds
+    
+    RETURN 
+      size([id IN studentIds WHERE id IS NOT NULL]) AS totalStudents,
+      size([id IN employeeIds WHERE id IS NOT NULL]) AS totalEmployees
     `,
     { institutionId }
   );
 
-  const stats = result[0];
+  const stats = result[0] || { totalStudents: 0, totalEmployees: 0 };
+  const totalStudents = stats.totalStudents || 0;
+  const totalEmployees = stats.totalEmployees || 0;
+  const totalUsers = totalStudents + totalEmployees;
+
   return {
-    totalUsers: stats?.totalUsers || 0,
-    totalStudents: stats?.totalStudents || 0,
-    totalEmployees: stats?.totalEmployees || 0,
+    totalUsers,
+    totalStudents,
+    totalEmployees,
   };
 }
 
-/**
- * Get list of pending users for institution approval
- * Filters by name and user type (student/employee)
- */
 export async function getInstitutionPendingUsers(
   institutionId: string,
   searchQuery?: string,
@@ -336,49 +320,42 @@ export async function getInstitutionPendingUsers(
   users: InstitutionUserListItem[];
   total: number;
 }> {
-  const filters: string[] = [];
   const params: Record<string, unknown> = {
     institutionId,
     skip: (page - 1) * pageSize,
     limit: pageSize,
+    pendingStatus: RELATIONSHIP_STATUS.PENDING,
   };
 
-  // Filter by member status (pending)
-  filters.push(`coalesce(m.status, 'pending') = 'pending'`);
-
-  // Filter by user type
+  // Build user type filter
+  let userTypeFilter = "";
   if (userType && userType !== "all") {
     if (userType === "student") {
-      filters.push(`(u.platformRole IS NULL OR u.platformRole = 'student')`);
+      userTypeFilter = `AND (u.platformRole IS NULL OR u.platformRole = 'student')`;
     } else if (userType === "employee") {
-      filters.push(`u.platformRole = 'employee'`);
+      userTypeFilter = `AND u.platformRole = 'employee'`;
     }
   } else {
-    // Include both students and employees
-    filters.push(
-      `(u.platformRole IS NULL OR u.platformRole IN ['student', 'employee'])`
-    );
+    userTypeFilter = `AND (u.platformRole IS NULL OR u.platformRole IN ['student', 'employee'])`;
   }
 
-  // Filter by search query (name or email)
+  // Build search filter
+  let searchFilter = "";
   if (searchQuery && searchQuery.trim()) {
-    filters.push(
-      `(toLower(u.name) CONTAINS $searchQuery OR toLower(u.email) CONTAINS $searchQuery)`
-    );
+    searchFilter = `AND (toLower(u.name) CONTAINS $searchQuery OR toLower(u.email) CONTAINS $searchQuery)`;
     params.searchQuery = searchQuery.trim().toLowerCase();
   }
 
-  const additionalFilters = filters.length
-    ? `AND ${filters.join(" AND ")}`
-    : "";
-
-  // Get total count
+  // Get total count - check both new (STUDENT/EMPLOYEE) and legacy (MEMBER_OF) relationships
   const countResult = await runQuery<{ count: number }>(
     `
-    MATCH (u:User)-[m:MEMBER_OF]->(i)
+    MATCH (i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      ${additionalFilters}
+    OPTIONAL MATCH (u:User)-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(r.status, $pendingStatus) = $pendingStatus
+      ${userTypeFilter}
+      ${searchFilter}
     RETURN COUNT(DISTINCT u) AS count
     `,
     params
@@ -386,7 +363,7 @@ export async function getInstitutionPendingUsers(
 
   const total = countResult[0]?.count || 0;
 
-  // Get paginated users
+  // Get paginated users - check both new (STUDENT/EMPLOYEE) and legacy (MEMBER_OF) relationships
   const result = await runQuery<{
     id: string;
     name: string;
@@ -399,10 +376,13 @@ export async function getInstitutionPendingUsers(
     createdAt: string;
   }>(
     `
-    MATCH (u:User)-[m:MEMBER_OF]->(i)
+    MATCH (i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      ${additionalFilters}
+    MATCH (u:User)-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(r.status, $pendingStatus) = $pendingStatus
+      ${userTypeFilter}
+      ${searchFilter}
     RETURN 
       u.userId AS id,
       coalesce(u.name, "") AS name,
@@ -411,7 +391,7 @@ export async function getInstitutionPendingUsers(
       u.phone AS phone,
       coalesce(toLower(u.platformRole), "student") AS platformRole,
       coalesce(u.status, "active") AS status,
-      coalesce(m.status, "pending") AS memberStatus,
+      coalesce(r.status, $pendingStatus) AS memberStatus,
       coalesce(u.createdAt, "") AS createdAt
     ORDER BY u.createdAt DESC
     SKIP $skip
@@ -426,10 +406,6 @@ export async function getInstitutionPendingUsers(
   };
 }
 
-/**
- * Get list of approved users for institution
- * Filters by name and user type (student/employee)
- */
 export async function getInstitutionApprovedUsers(
   institutionId: string,
   searchQuery?: string,
@@ -440,49 +416,44 @@ export async function getInstitutionApprovedUsers(
   users: InstitutionUserListItem[];
   total: number;
 }> {
-  const filters: string[] = [];
   const params: Record<string, unknown> = {
     institutionId,
     skip: (page - 1) * pageSize,
     limit: pageSize,
+    pendingStatus: RELATIONSHIP_STATUS.PENDING,
+    activeStatus: RELATIONSHIP_STATUS.ACTIVE,
   };
 
-  // Filter by member status (approved)
-  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
-
-  // Filter by user type
+  // Build user type filter
+  let userTypeFilter = "";
   if (userType && userType !== "all") {
     if (userType === "student") {
-      filters.push(`(u.platformRole IS NULL OR u.platformRole = 'student')`);
+      userTypeFilter = `AND (u.platformRole IS NULL OR u.platformRole = 'student')`;
     } else if (userType === "employee") {
-      filters.push(`u.platformRole = 'employee'`);
+      userTypeFilter = `AND u.platformRole = 'employee'`;
     }
   } else {
-    // Include both students and employees
-    filters.push(
-      `(u.platformRole IS NULL OR u.platformRole IN ['student', 'employee'])`
-    );
+    userTypeFilter = `AND (u.platformRole IS NULL OR u.platformRole IN ['student', 'employee'])`;
   }
 
-  // Filter by search query (name or email)
+  // Build search filter
+  let searchFilter = "";
   if (searchQuery && searchQuery.trim()) {
-    filters.push(
-      `(toLower(u.name) CONTAINS $searchQuery OR toLower(u.email) CONTAINS $searchQuery)`
-    );
+    searchFilter = `AND (toLower(u.name) CONTAINS $searchQuery OR toLower(u.email) CONTAINS $searchQuery)`;
     params.searchQuery = searchQuery.trim().toLowerCase();
   }
 
-  const additionalFilters = filters.length
-    ? `AND ${filters.join(" AND ")}`
-    : "";
-
-  // Get total count
+  // Get total count - check both new (STUDENT/EMPLOYEE) and legacy (MEMBER_OF) relationships
+  // Only show accounts with 'active' status (created by institution/super_admin)
   const countResult = await runQuery<{ count: number }>(
     `
-    MATCH (u:User)-[m:MEMBER_OF]->(i)
+    MATCH (i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      ${additionalFilters}
+    OPTIONAL MATCH (u:User)-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(r.status, $pendingStatus) = $activeStatus
+      ${userTypeFilter}
+      ${searchFilter}
     RETURN COUNT(DISTINCT u) AS count
     `,
     params
@@ -490,7 +461,7 @@ export async function getInstitutionApprovedUsers(
 
   const total = countResult[0]?.count || 0;
 
-  // Get paginated users
+  // Get paginated users - check both new (STUDENT/EMPLOYEE) and legacy (MEMBER_OF) relationships
   const result = await runQuery<{
     id: string;
     name: string;
@@ -503,10 +474,13 @@ export async function getInstitutionApprovedUsers(
     createdAt: string;
   }>(
     `
-    MATCH (u:User)-[m:MEMBER_OF]->(i)
+    MATCH (i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      ${additionalFilters}
+    MATCH (u:User)-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(r.status, $pendingStatus) = $activeStatus
+      ${userTypeFilter}
+      ${searchFilter}
     RETURN 
       u.userId AS id,
       coalesce(u.name, "") AS name,
@@ -515,7 +489,7 @@ export async function getInstitutionApprovedUsers(
       u.phone AS phone,
       coalesce(toLower(u.platformRole), "student") AS platformRole,
       coalesce(u.status, "active") AS status,
-      coalesce(m.status, "pending") AS memberStatus,
+      coalesce(r.status, $pendingStatus) AS memberStatus,
       coalesce(u.createdAt, "") AS createdAt
     ORDER BY u.name ASC
     SKIP $skip
@@ -530,9 +504,6 @@ export async function getInstitutionApprovedUsers(
   };
 }
 
-/**
- * Get user details by ID for institution
- */
 export async function getInstitutionUserDetails(
   userId: string,
   institutionId: string
@@ -549,7 +520,7 @@ export async function getInstitutionUserDetails(
     createdAt: string;
   }>(
     `
-    MATCH (u:User {userId: $userId})-[m:MEMBER_OF]->(i)
+    MATCH (u:User {userId: $userId})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
     RETURN 
@@ -579,10 +550,6 @@ export interface InstitutionAdvisorStats {
   totalAdvisors: number;
 }
 
-/**
- * Get advisor statistics for institution
- * Returns counts of total employees and employees assigned as advisors
- */
 export async function getInstitutionAdvisorStats(
   institutionId: string
 ): Promise<InstitutionAdvisorStats> {
@@ -596,15 +563,15 @@ export async function getInstitutionAdvisorStats(
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
     
-    // Count all employees that are MEMBER_OF this institution
-    OPTIONAL MATCH (e:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
-    WHERE coalesce(m.status, "pending") = "approved"
+    // Count all employees that are MEMBER_OF this institution (checking all relationship types)
+    OPTIONAL MATCH (e:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(m.status, $pendingStatus) = $activeStatus
     WITH i, COUNT(DISTINCT e) AS totalEmployees
     
     // Count employees that are assigned as advisors (have ADVISES relationship to clubs in this institution)
     // Match employees that are members of the institution AND have ADVISES relationship to clubs
-    OPTIONAL MATCH (a:User {platformRole: "employee"})-[m2:MEMBER_OF]->(i)
-    WHERE coalesce(m2.status, "pending") = "approved"
+    OPTIONAL MATCH (a:User {platformRole: "employee"})-[m2:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(m2.status, $pendingStatus) = $activeStatus
       AND EXISTS {
         MATCH (a)-[:ADVISES]->(c:Club)-[:BELONGS_TO]->(i)
       }
@@ -612,7 +579,11 @@ export async function getInstitutionAdvisorStats(
     
     RETURN totalEmployees, totalAdvisors
     `,
-    { institutionId }
+    {
+      institutionId,
+      pendingStatus: RELATIONSHIP_STATUS.PENDING,
+      activeStatus: RELATIONSHIP_STATUS.ACTIVE,
+    }
   );
 
   const stats = result[0];
@@ -638,10 +609,6 @@ export interface InstitutionEmployeeListItem {
   isStaff: boolean;
 }
 
-/**
- * Get staff statistics for institution
- * Returns counts of total employees and employees assigned as staff
- */
 export async function getInstitutionStaffStats(
   institutionId: string
 ): Promise<InstitutionStaffStats> {
@@ -655,20 +622,24 @@ export async function getInstitutionStaffStats(
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
     
-    // Count all employees that are MEMBER_OF this institution
-    OPTIONAL MATCH (e:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
-    WHERE coalesce(m.status, "pending") = "approved"
+    // Count all employees that are MEMBER_OF this institution (checking all relationship types)
+    OPTIONAL MATCH (e:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(m.status, $pendingStatus) = $activeStatus
     WITH i, COUNT(DISTINCT e) AS totalEmployees
     
     // Count employees that are assigned as staff (have IS_STAFF_OF relationship)
-    OPTIONAL MATCH (s:User {platformRole: "employee"})-[m2:MEMBER_OF]->(i)
-    WHERE coalesce(m2.status, "pending") = "approved"
+    OPTIONAL MATCH (s:User {platformRole: "employee"})-[m2:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
+    WHERE coalesce(m2.status, $pendingStatus) = $activeStatus
       AND EXISTS { (s)-[:IS_STAFF_OF]->(i) }
     WITH totalEmployees, COUNT(DISTINCT s) AS totalStaffs
     
     RETURN totalEmployees, totalStaffs
     `,
-    { institutionId }
+    {
+      institutionId,
+      pendingStatus: RELATIONSHIP_STATUS.PENDING,
+      activeStatus: RELATIONSHIP_STATUS.ACTIVE,
+    }
   );
 
   const stats = result[0];
@@ -678,10 +649,6 @@ export async function getInstitutionStaffStats(
   };
 }
 
-/**
- * Get list of approved employees for institution (excluding staff)
- * Filters by name, email, phone
- */
 export async function getInstitutionApprovedEmployees(
   institutionId: string,
   searchQuery?: string,
@@ -700,8 +667,8 @@ export async function getInstitutionApprovedEmployees(
     limit: pageSize,
   };
 
-  // Filter by member status (approved) and exclude staff
-  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
+  // Filter by member status (active) and exclude staff
+  filters.push(`coalesce(m.status, $pendingStatus) = $activeStatus`);
   // Exclude staff - check that there's no IS_STAFF_OF relationship
 
   // Filter by search query (name, email, or phone)
@@ -721,7 +688,7 @@ export async function getInstitutionApprovedEmployees(
   // Get total count
   const countResult = await runQuery<{ count: number }>(
     `
-    MATCH (u:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
+    MATCH (u:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       ${additionalFilters}
@@ -745,7 +712,7 @@ export async function getInstitutionApprovedEmployees(
     isStaff: boolean;
   }>(
     `
-    MATCH (u:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
+    MATCH (u:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       ${additionalFilters}
@@ -772,10 +739,6 @@ export async function getInstitutionApprovedEmployees(
   };
 }
 
-/**
- * Get list of assigned staffs for institution
- * Filters by name, email, phone
- */
 export async function getInstitutionStaffs(
   institutionId: string,
   searchQuery?: string,
@@ -794,8 +757,8 @@ export async function getInstitutionStaffs(
     limit: pageSize,
   };
 
-  // Filter by member status (approved) and has IS_STAFF_OF relationship
-  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
+  // Filter by member status (active) and has IS_STAFF_OF relationship
+  filters.push(`coalesce(m.status, $pendingStatus) = $activeStatus`);
 
   // Filter by search query (name, email, or phone)
   if (searchQuery && searchQuery.trim()) {
@@ -814,7 +777,7 @@ export async function getInstitutionStaffs(
   // Get total count
   const countResult = await runQuery<{ count: number }>(
     `
-    MATCH (u:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
+    MATCH (u:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       ${additionalFilters}
@@ -837,7 +800,7 @@ export async function getInstitutionStaffs(
     isStaff: boolean;
   }>(
     `
-    MATCH (u:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
+    MATCH (u:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       ${additionalFilters}
@@ -961,10 +924,12 @@ export async function getInstitutionEmployeesForClubAdvisor(
   const params: Record<string, unknown> = {
     institutionId,
     clubId,
+    pendingStatus: RELATIONSHIP_STATUS.PENDING,
+    activeStatus: RELATIONSHIP_STATUS.ACTIVE,
   };
 
-  // Filter by member status (approved)
-  filters.push(`coalesce(m.status, 'pending') = 'approved'`);
+  // Filter by member status (active)
+  filters.push(`coalesce(m.status, $pendingStatus) = $activeStatus`);
 
   // Filter by search query (name, email, or phone)
   if (searchQuery && searchQuery.trim()) {
@@ -989,7 +954,7 @@ export async function getInstitutionEmployeesForClubAdvisor(
     isStaff: boolean;
   }>(
     `
-    MATCH (e:User {platformRole: "employee"})-[m:MEMBER_OF]->(i)
+    MATCH (e:User {platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
     WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
       AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       ${additionalFilters}
@@ -1283,9 +1248,6 @@ export async function getInstitutionDepartments(
   };
 }
 
-/**
- * Get all colleges for dropdown selection
- */
 export async function getAllInstitutionColleges(
   institutionId: string
 ): Promise<Array<{ collegeId: string; name: string; acronym: string }>> {
@@ -1303,6 +1265,7 @@ export async function getAllInstitutionColleges(
       coalesce(c.name, "") AS name,
       coalesce(c.acronym, "") AS acronym
     ORDER BY c.name ASC
+    LIMIT 1000
     `,
     { institutionId }
   );
@@ -1393,9 +1356,6 @@ export async function getInstitutionPrograms(
   };
 }
 
-/**
- * Get all departments for dropdown selection with college info
- */
 export async function getAllInstitutionDepartments(
   institutionId: string
 ): Promise<
@@ -1426,6 +1386,7 @@ export async function getAllInstitutionDepartments(
       coalesce(c.collegeId, "") AS collegeId,
       coalesce(c.name, "") AS collegeName
     ORDER BY d.name ASC
+    LIMIT 1000
     `,
     { institutionId }
   );
@@ -1433,9 +1394,6 @@ export async function getAllInstitutionDepartments(
   return result;
 }
 
-/**
- * Get all programs for dropdown selection
- */
 export async function getAllInstitutionPrograms(institutionId: string): Promise<
   Array<{
     programId: string;
@@ -1490,7 +1448,13 @@ export interface InstitutionEventListItem {
   link?: string;
   maxSlots?: number;
   visibility: "public" | "institution" | "restricted";
-  status: "draft" | "pending" | "approved" | "published" | "rejected" | "hidden";
+  status:
+    | "draft"
+    | "pending"
+    | "approved"
+    | "published"
+    | "rejected"
+    | "hidden";
   imageUrl?: string;
   posterId: string;
   posterName: string;
@@ -2016,6 +1980,7 @@ export async function getInstitutionClubsForDropdown(
       coalesce(c.name, c.clubName, "") AS name,
       coalesce(c.acronym, c.clubAcr) AS acronym
     ORDER BY c.name ASC, c.clubName ASC
+    LIMIT 1000
     `,
     { institutionId }
   );

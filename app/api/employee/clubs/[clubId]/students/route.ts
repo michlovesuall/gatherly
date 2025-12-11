@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS } from "@/lib/constants";
 
 export async function GET(
   req: Request,
@@ -30,31 +31,37 @@ export async function GET(
     const departmentId = searchParams.get("departmentId") || "";
     const programId = searchParams.get("programId") || "";
 
-    // Get the institution ID from the club
-    const clubInstitution = await runQuery<{
+    // Verify advisor is actually an advisor of this club and get institution
+    const advisorInstitution = await runQuery<{
       institutionId: string;
       userId: string;
     }>(
       `
-      MATCH (c:Club {clubId: $clubId})-[:BELONGS_TO]->(i)
+      MATCH (e:User {userId: $employeeId})-[:ADVISES]->(c:Club {clubId: $clubId})
+      MATCH (c)-[:BELONGS_TO]->(i)
       WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
       RETURN COALESCE(i.institutionId, i.userId) AS institutionId, i.userId AS userId
       LIMIT 1
       `,
-      { clubId }
+      { employeeId: session.userId, clubId }
     );
 
-    if (!clubInstitution.length) {
+    if (!advisorInstitution.length) {
       return NextResponse.json(
-        { ok: false, error: "Club not found or has no institution" },
-        { status: 404 }
+        { ok: false, error: "You are not an advisor of this club" },
+        { status: 403 }
       );
     }
 
-    const institutionId = clubInstitution[0].institutionId || clubInstitution[0].userId;
+    const institutionId = advisorInstitution[0].institutionId || advisorInstitution[0].userId;
 
     // Build query with proper MATCH clauses for filters
-    const queryParams: Record<string, unknown> = { institutionId, clubId };
+    const queryParams: Record<string, unknown> = { 
+      institutionId, 
+      clubId,
+      pendingStatus: RELATIONSHIP_STATUS.PENDING,
+      activeStatus: RELATIONSHIP_STATUS.ACTIVE
+    };
     let matchClauses: string[] = [];
     let whereFilters: string[] = [];
 
@@ -80,7 +87,7 @@ export async function GET(
 
     // Program filter - use MATCH instead of WHERE pattern
     if (programId && programId.trim()) {
-      matchClauses.push(`MATCH (s)-[:ENROLLED_IN_PROGRAM]->(progFilter:Program {programId: $programId})`);
+      matchClauses.push(`MATCH (s)-[:ENROLLED_IN]->(progFilter:Program {programId: $programId})`);
       queryParams.programId = programId;
     }
 
@@ -101,16 +108,16 @@ export async function GET(
       programAcronym?: string;
     }>(
       `
-      MATCH (s:User)-[:MEMBER_OF]->(i)
+      MATCH (s:User {platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
         AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-        AND s.platformRole = "student"${whereClause}${additionalMatches}
+        AND coalesce(r.status, $pendingStatus) = $activeStatus${whereClause}${additionalMatches}
       OPTIONAL MATCH (s)-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
       WITH s, mc
       WHERE mc IS NULL
       OPTIONAL MATCH (s)-[:ENROLLED_IN_COLLEGE]->(col:College)
       OPTIONAL MATCH (s)-[:ENROLLED_IN_DEPARTMENT]->(d:Department)
-      OPTIONAL MATCH (s)-[:ENROLLED_IN_PROGRAM]->(p:Program)
+      OPTIONAL MATCH (s)-[:ENROLLED_IN]->(p:Program)
       WITH s, col, d, p
       RETURN 
         s.userId AS userId,
@@ -137,10 +144,10 @@ export async function GET(
       acronym?: string;
     }>(
       `
-      MATCH (s:User)-[:MEMBER_OF]->(i)
+      MATCH (s:User {platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
         AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-        AND s.platformRole = "student"
+        AND coalesce(r.status, $pendingStatus) = $activeStatus
       OPTIONAL MATCH (s)-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
       WITH s, mc
       WHERE mc IS NULL
@@ -148,12 +155,22 @@ export async function GET(
       RETURN DISTINCT col.collegeId AS collegeId, col.name AS name, col.acronym AS acronym
       ORDER BY col.name ASC
       `,
-      { institutionId, clubId }
+      { 
+        institutionId, 
+        clubId,
+        pendingStatus: RELATIONSHIP_STATUS.PENDING,
+        activeStatus: RELATIONSHIP_STATUS.ACTIVE
+      }
     );
 
     // Build departments query based on college filter
     // Only get departments that have students who are not already members
-    const deptQueryParams: Record<string, unknown> = { institutionId, clubId };
+    const deptQueryParams: Record<string, unknown> = { 
+      institutionId, 
+      clubId,
+      pendingStatus: RELATIONSHIP_STATUS.PENDING,
+      activeStatus: RELATIONSHIP_STATUS.ACTIVE
+    };
     
     let departments;
     if (collegeId && collegeId.trim()) {
@@ -164,10 +181,10 @@ export async function GET(
         acronym?: string;
       }>(
         `
-        MATCH (s:User)-[:MEMBER_OF]->(i)
+        MATCH (s:User {platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
         WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
           AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-          AND s.platformRole = "student"
+          AND coalesce(r.status, $pendingStatus) = $activeStatus
         OPTIONAL MATCH (s)-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
         WITH s, mc
         WHERE mc IS NULL
@@ -185,10 +202,10 @@ export async function GET(
         acronym?: string;
       }>(
         `
-        MATCH (s:User)-[:MEMBER_OF]->(i)
+        MATCH (s:User {platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
         WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
           AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-          AND s.platformRole = "student"
+          AND coalesce(r.status, $pendingStatus) = $activeStatus
         OPTIONAL MATCH (s)-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
         WITH s, mc
         WHERE mc IS NULL
@@ -202,7 +219,12 @@ export async function GET(
 
     // Build programs query based on department filter
     // Only get programs that have students who are not already members
-    const progQueryParams: Record<string, unknown> = { institutionId, clubId };
+    const progQueryParams: Record<string, unknown> = { 
+      institutionId, 
+      clubId,
+      pendingStatus: RELATIONSHIP_STATUS.PENDING,
+      activeStatus: RELATIONSHIP_STATUS.ACTIVE
+    };
     
     let programs;
     if (departmentId && departmentId.trim()) {
@@ -213,15 +235,15 @@ export async function GET(
         acronym?: string;
       }>(
         `
-        MATCH (s:User)-[:MEMBER_OF]->(i)
+        MATCH (s:User {platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
         WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
           AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-          AND s.platformRole = "student"
+          AND coalesce(r.status, $pendingStatus) = $activeStatus
         OPTIONAL MATCH (s)-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
         WITH s, mc
         WHERE mc IS NULL
         MATCH (s)-[:ENROLLED_IN_DEPARTMENT]->(d:Department {departmentId: $departmentId})
-        MATCH (s)-[:ENROLLED_IN_PROGRAM]->(p:Program)
+        MATCH (s)-[:ENROLLED_IN]->(p:Program)
         RETURN DISTINCT p.programId AS programId, p.name AS name, p.acronym AS acronym
         ORDER BY p.name ASC
         `,
@@ -234,14 +256,14 @@ export async function GET(
         acronym?: string;
       }>(
         `
-        MATCH (s:User)-[:MEMBER_OF]->(i)
+        MATCH (s:User {platformRole: "student"})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
         WHERE (coalesce(i.platformRole, "") = "institution" OR i:Institution)
           AND (i.institutionId = $institutionId OR i.userId = $institutionId)
-          AND s.platformRole = "student"
+          AND coalesce(r.status, $pendingStatus) = $activeStatus
         OPTIONAL MATCH (s)-[mc:MEMBER_OF_CLUB]->(c:Club {clubId: $clubId})
         WITH s, mc
         WHERE mc IS NULL
-        MATCH (s)-[:ENROLLED_IN_PROGRAM]->(p:Program)
+        MATCH (s)-[:ENROLLED_IN]->(p:Program)
         RETURN DISTINCT p.programId AS programId, p.name AS name, p.acronym AS acronym
         ORDER BY p.name ASC
         `,

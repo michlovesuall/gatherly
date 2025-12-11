@@ -210,6 +210,7 @@ export function InstitutionSettingsPage({
   const [availableColleges, setAvailableColleges] = useState<
     Array<{ collegeId: string; name: string; acronym: string }>
   >([]);
+  const [loadingColleges, setLoadingColleges] = useState(false);
   const [availableDepartments, setAvailableDepartments] = useState<
     Array<{
       departmentId: string;
@@ -219,6 +220,7 @@ export function InstitutionSettingsPage({
       collegeName: string;
     }>
   >([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
 
   // Form state for Add Program
   const [programForm, setProgramForm] = useState({
@@ -237,14 +239,21 @@ export function InstitutionSettingsPage({
   // Fetch available colleges for department form
   useEffect(() => {
     async function fetchColleges() {
+      setLoadingColleges(true);
       try {
         const res = await fetch("/api/institution/colleges/list");
         const data = await res.json();
         if (res.ok && data?.colleges) {
           setAvailableColleges(data.colleges);
+        } else {
+          console.error("Failed to fetch colleges:", data?.error);
+          setAvailableColleges([]);
         }
       } catch (e) {
         console.error("Failed to fetch colleges:", e);
+        setAvailableColleges([]);
+      } finally {
+        setLoadingColleges(false);
       }
     }
     fetchColleges();
@@ -253,14 +262,21 @@ export function InstitutionSettingsPage({
   // Fetch available departments for program form
   useEffect(() => {
     async function fetchDepartments() {
+      setLoadingDepartments(true);
       try {
         const res = await fetch("/api/institution/departments/list");
         const data = await res.json();
         if (res.ok && data?.departments) {
           setAvailableDepartments(data.departments);
+        } else {
+          console.error("Failed to fetch departments:", data?.error);
+          setAvailableDepartments([]);
         }
       } catch (e) {
         console.error("Failed to fetch departments:", e);
+        setAvailableDepartments([]);
+      } finally {
+        setLoadingDepartments(false);
       }
     }
     fetchDepartments();
@@ -1764,22 +1780,42 @@ export function InstitutionSettingsPage({
                   onValueChange={(value) =>
                     setDepartmentForm({ ...departmentForm, collegeId: value })
                   }
+                  disabled={loadingColleges || availableColleges.length === 0}
                   required
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a college" />
+                    <SelectValue 
+                      placeholder={
+                        loadingColleges 
+                          ? "Loading colleges..." 
+                          : availableColleges.length === 0 
+                          ? "No colleges available" 
+                          : "Select a college"
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableColleges.map((college) => (
-                      <SelectItem
-                        key={college.collegeId}
-                        value={college.collegeId}
-                      >
-                        {college.name} ({college.acronym})
-                      </SelectItem>
-                    ))}
+                    {availableColleges.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        {loadingColleges ? "Loading colleges..." : "No colleges available"}
+                      </div>
+                    ) : (
+                      availableColleges.map((college) => (
+                        <SelectItem
+                          key={college.collegeId}
+                          value={college.collegeId}
+                        >
+                          {college.name} ({college.acronym})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {!loadingColleges && availableColleges.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    No colleges are available for this institution. Please add colleges first.
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1967,7 +2003,18 @@ export function InstitutionSettingsPage({
       {/* Add Program Modal */}
       <Dialog
         open={isAddProgramModalOpen}
-        onOpenChange={setIsAddProgramModalOpen}
+        onOpenChange={(open) => {
+          setIsAddProgramModalOpen(open);
+          if (!open) {
+            // Reset form when modal closes
+            setProgramForm({
+              name: "",
+              acronym: "",
+              departmentId: "",
+            });
+            setDepartmentSearchQuery("");
+          }
+        }}
       >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -2005,14 +2052,6 @@ export function InstitutionSettingsPage({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="program-college">College</Label>
-                <Input
-                  id="program-college"
-                  value={selectedCollegeName}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="program-department">
                   Department <span className="text-red-500">*</span>
                 </Label>
@@ -2026,8 +2065,11 @@ export function InstitutionSettingsPage({
                       role="combobox"
                       aria-expanded={departmentPopoverOpen}
                       className="w-full justify-between"
+                      disabled={loadingDepartments || availableDepartments.length === 0}
                     >
-                      {programForm.departmentId
+                      {loadingDepartments
+                        ? "Loading departments..."
+                        : programForm.departmentId
                         ? filteredDepartments.find(
                             (dept) =>
                               dept.departmentId === programForm.departmentId
@@ -2044,6 +2086,8 @@ export function InstitutionSettingsPage({
                               )?.acronym
                             })`
                           : "Select a department"
+                        : availableDepartments.length === 0
+                        ? "No departments available"
                         : "Select a department"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -2059,36 +2103,71 @@ export function InstitutionSettingsPage({
                         onValueChange={setDepartmentSearchQuery}
                       />
                       <CommandList>
-                        <CommandEmpty>No departments found.</CommandEmpty>
-                        <CommandGroup>
-                          {filteredDepartments.map((dept) => (
-                            <CommandItem
-                              key={dept.departmentId}
-                              value={`${dept.name} ${dept.acronym}`}
-                              onSelect={() => {
-                                setProgramForm({
-                                  ...programForm,
-                                  departmentId: dept.departmentId,
-                                });
-                                setDepartmentSearchQuery("");
-                                setDepartmentPopoverOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={
-                                  programForm.departmentId === dept.departmentId
-                                    ? "mr-2 h-4 w-4 opacity-100"
-                                    : "mr-2 h-4 w-4 opacity-0"
-                                }
-                              />
-                              {dept.name} ({dept.acronym})
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
+                        {loadingDepartments ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Loading departments...
+                          </div>
+                        ) : filteredDepartments.length === 0 ? (
+                          <CommandEmpty>
+                            {availableDepartments.length === 0
+                              ? "No departments available for this institution"
+                              : "No departments found."}
+                          </CommandEmpty>
+                        ) : (
+                          <CommandGroup>
+                            {filteredDepartments.map((dept) => (
+                              <CommandItem
+                                key={dept.departmentId}
+                                value={`${dept.name} ${dept.acronym}`}
+                                onSelect={() => {
+                                  setProgramForm({
+                                    ...programForm,
+                                    departmentId: dept.departmentId,
+                                  });
+                                  setDepartmentSearchQuery("");
+                                  setDepartmentPopoverOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={
+                                    programForm.departmentId === dept.departmentId
+                                      ? "mr-2 h-4 w-4 opacity-100"
+                                      : "mr-2 h-4 w-4 opacity-0"
+                                  }
+                                />
+                                {dept.name} ({dept.acronym})
+                                {dept.collegeName && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    - {dept.collegeName}
+                                  </span>
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
                       </CommandList>
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {!loadingDepartments && availableDepartments.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    No departments are available for this institution. Please add departments first.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="program-college">College</Label>
+                <Input
+                  id="program-college"
+                  value={selectedCollegeName || "Select a department to see college"}
+                  disabled
+                  className={selectedCollegeName ? "" : "text-muted-foreground"}
+                />
+                {!selectedCollegeName && programForm.departmentId && (
+                  <p className="text-xs text-amber-600">
+                    Selected department does not have an associated college.
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -2097,7 +2176,6 @@ export function InstitutionSettingsPage({
                 variant="outline"
                 onClick={() => {
                   setIsAddProgramModalOpen(false);
-                  setDepartmentSearchQuery("");
                 }}
               >
                 Cancel

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS } from "@/lib/constants";
 
 export async function PATCH(
   req: Request,
@@ -27,21 +28,24 @@ export async function PATCH(
     const institutionId = session.institutionId || session.userId;
     const now = new Date().toISOString();
 
-    // Update member status to approved
+    // Update member status to active (checking all relationship types: STUDENT, EMPLOYEE, MEMBER_OF)
+    // Use FOREACH to update all matching relationships
     const result = await runQuery<{
       userId: string;
       name: string;
       memberStatus: string;
     }>(
       `
-      MATCH (u:User {userId: $userId})-[m:MEMBER_OF]->(i)
+      MATCH (u:User {userId: $userId})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
         AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      SET m.status = "approved",
-          m.updatedAt = $now
-      RETURN u.userId AS userId, u.name AS name, m.status AS memberStatus
+      SET r.status = $activeStatus,
+          r.updatedAt = $now
+      WITH u, r
+      RETURN u.userId AS userId, u.name AS name, r.status AS memberStatus
+      LIMIT 1
       `,
-      { userId: id, institutionId, now }
+      { userId: id, institutionId, activeStatus: RELATIONSHIP_STATUS.ACTIVE, now }
     );
 
     if (!result.length) {

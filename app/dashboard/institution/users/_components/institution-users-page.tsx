@@ -643,7 +643,7 @@ export function InstitutionUsersPage({
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
             <p className="text-xs text-muted-foreground">
-              All users in organization
+              Total users affiliated in the institution
             </p>
           </CardContent>
         </Card>
@@ -656,7 +656,7 @@ export function InstitutionUsersPage({
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalStudents}</div>
             <p className="text-xs text-muted-foreground">
-              Student accounts
+              Total students affiliated in the institution
             </p>
           </CardContent>
         </Card>
@@ -669,7 +669,7 @@ export function InstitutionUsersPage({
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalEmployees}</div>
             <p className="text-xs text-muted-foreground">
-              Employee accounts
+              Total employees affiliated in the institution
             </p>
           </CardContent>
         </Card>

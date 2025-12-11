@@ -19,8 +19,8 @@ import type { NewsfeedContext } from "@/lib/repos/student";
 export interface NewsfeedHeaderProps {
   context: NewsfeedContext;
   role: "student" | "employee" | "institution" | "super_admin";
-  feedFilter: "for-you" | "global";
-  onFilterChange: (filter: "for-you" | "global") => void;
+  feedFilter: "all" | "institution" | "public";
+  onFilterChange: (filter: "all" | "institution" | "public") => void;
 }
 
 export function NewsfeedHeader({
@@ -84,25 +84,26 @@ export function NewsfeedHeader({
               </div>
             </div>
 
-            {/* Middle - Filter Dropdown (Centered) - Only show for Student, Employee, and Institution roles */}
-            {role !== "super_admin" && (
+            {/* Middle - Filter Dropdown (Centered) - Show for all roles */}
+            {(
               <div className="flex items-center justify-center flex-1">
                 {isMounted ? (
                   <Select
                     value={feedFilter}
-                    onValueChange={(value) => onFilterChange(value as "for-you" | "global")}
+                    onValueChange={(value) => onFilterChange(value as "all" | "institution" | "public")}
                   >
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
                       <SelectValue placeholder="Select filter" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="for-you">Institution</SelectItem>
-                      <SelectItem value="global">Global</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="institution">Institution Only</SelectItem>
+                      <SelectItem value="public">Public</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="w-[140px] h-8 border border-input rounded-md bg-background flex items-center justify-center text-xs text-muted-foreground">
-                    {feedFilter === "for-you" ? "Institution" : "Global"}
+                  <div className="w-[160px] h-8 border border-input rounded-md bg-background flex items-center justify-center text-xs text-muted-foreground">
+                    {feedFilter === "institution" ? "Institution Only" : feedFilter === "public" ? "Public" : "All"}
                   </div>
                 )}
               </div>

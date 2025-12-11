@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS } from "@/lib/constants";
 
 export async function PATCH(
   req: Request,
@@ -30,14 +31,18 @@ export async function PATCH(
     // Verify employee belongs to institution and is approved
     const employeeCheck = await runQuery<{ exists: boolean }>(
       `
-      MATCH (u:User {userId: $userId})-[m:MEMBER_OF]->(i)
+      MATCH (u:User {userId: $userId, platformRole: "employee"})-[m:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
         AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-        AND coalesce(m.status, "pending") = "approved"
-        AND u.platformRole = "employee"
+        AND coalesce(m.status, $pendingStatus) = $activeStatus
       RETURN COUNT(u) > 0 AS exists
       `,
-      { userId: id, institutionId }
+      { 
+        userId: id, 
+        institutionId,
+        pendingStatus: RELATIONSHIP_STATUS.PENDING,
+        activeStatus: RELATIONSHIP_STATUS.ACTIVE
+      }
     );
 
     if (!employeeCheck[0]?.exists) {

@@ -536,7 +536,7 @@ export function NewsfeedFeed({
   ) => void;
 }) {
   return (
-    <div className="space-y-4 pb-6 max-w-3xl min-w-3xl">
+    <div className="w-full max-w-3xl space-y-4 py-4">
       {/* Feed Items */}
       <div className="space-y-4">
         {loading ? (

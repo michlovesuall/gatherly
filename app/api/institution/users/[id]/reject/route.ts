@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runQuery } from "@/lib/neo4j";
 import { getSession } from "@/lib/auth/session";
+import { RELATIONSHIP_STATUS } from "@/lib/constants";
 
 export async function PATCH(
   req: Request,
@@ -27,21 +28,23 @@ export async function PATCH(
     const institutionId = session.institutionId || session.userId;
     const now = new Date().toISOString();
 
-    // Update member status to rejected
+    // Update member status to rejected (checking all relationship types: STUDENT, EMPLOYEE, MEMBER_OF)
     const result = await runQuery<{
       userId: string;
       name: string;
       memberStatus: string;
     }>(
       `
-      MATCH (u:User {userId: $userId})-[m:MEMBER_OF]->(i)
+      MATCH (u:User {userId: $userId})-[r:STUDENT|EMPLOYEE|MEMBER_OF]->(i)
       WHERE (i.userId = $institutionId OR i.institutionId = $institutionId)
         AND (coalesce(i.platformRole, "") = "institution" OR i:Institution)
-      SET m.status = "rejected",
-          m.updatedAt = $now
-      RETURN u.userId AS userId, u.name AS name, m.status AS memberStatus
+      SET r.status = $rejectedStatus,
+          r.updatedAt = $now
+      WITH u, r
+      RETURN u.userId AS userId, u.name AS name, r.status AS memberStatus
+      LIMIT 1
       `,
-      { userId: id, institutionId, now }
+      { userId: id, institutionId, rejectedStatus: RELATIONSHIP_STATUS.REJECTED, now }
     );
 
     if (!result.length) {
